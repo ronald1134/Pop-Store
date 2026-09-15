@@ -33,7 +33,7 @@ A ideia é apresentar um catálogo de produtos, permitir cadastro e login de usu
 
 ### 1. Clone o repositório
 ```bash
-git clone <url-do-repositorio>
+git clone <https://github.com/ronald1134/Pop-Store.git>
 cd Projeto-faculdade
 
 Estrutura do projeto
