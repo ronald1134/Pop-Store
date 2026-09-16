@@ -24,7 +24,7 @@ import {
   useToast,
 } from '@chakra-ui/react'
 import { Pencil, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
 import { API_URL } from '../services/api'
@@ -43,6 +43,7 @@ export function AdminPage() {
   })
   const [editingId, setEditingId] = useState<number | null>(null)
   const [users, setUsers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([])
+  const formRef = useRef<HTMLDivElement>(null)
 
   const requestHeaders = {
     'Content-Type': 'application/json',
@@ -81,8 +82,8 @@ export function AdminPage() {
 
   const handleSubmit = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/products${editingId ? `/${editingId}` : ''}`, {
-        method: editingId ? 'PUT' : 'POST',
+      const response = await fetch(`${API_URL}/api/products${editingId !== null ? `/${editingId}` : ''}`, {
+        method: editingId !== null ? 'PUT' : 'POST',
         headers: requestHeaders,
         body: JSON.stringify({
           title: form.title,
@@ -100,7 +101,7 @@ export function AdminPage() {
         throw new Error(data.message || 'Erro ao salvar produto')
       }
 
-      toast({ title: editingId ? 'Produto atualizado' : 'Produto cadastrado', status: 'success', duration: 3000, isClosable: true })
+      toast({ title: editingId !== null ? 'Produto atualizado' : 'Produto cadastrado', status: 'success', duration: 3000, isClosable: true })
       resetForm()
 
       await refreshProducts()
@@ -125,6 +126,8 @@ export function AdminPage() {
       description: product.description,
       rating: String(product.rating),
     })
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    toast({ title: 'Produto carregado para edição', status: 'info', duration: 2000, isClosable: true })
   }
 
   const deleteProduct = async (id: number) => {
@@ -190,7 +193,10 @@ export function AdminPage() {
         Painel administrativo
       </Heading>
 
-      <Box mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+      <Box ref={formRef} mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+        <Heading as="h2" size="md" mb={6}>
+          {editingId !== null ? 'Editar produto' : 'Cadastrar produto'}
+        </Heading>
         <Text color="gray.300" mb={6}>
           Conta demo: admin@culturepop.com / admin123
         </Text>
@@ -265,7 +271,7 @@ export function AdminPage() {
 
           <Flex justify="flex-end">
             <Button colorScheme="pink" size="lg" onClick={handleSubmit}>
-              {editingId ? 'Salvar alterações' : 'Cadastrar produto'}
+              {editingId !== null ? 'Salvar alterações' : 'Cadastrar produto'}
             </Button>
             {editingId && (
               <Button variant="ghost" onClick={resetForm}>
