@@ -15,7 +15,7 @@ const categories = [
 
 const heroSlides = [
   {
-    image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=85',
+    image: 'https://images.pexels.com/photos/37165246/pexels-photo-37165246/free-photo-of-estante-de-livros-aconchegante-com-colecao-diversificada.jpeg?cs=tinysrgb&dpr=1&w=500',
     eyebrow: 'Leituras que ficam',
     title: 'Sua próxima obsessão começa aqui.',
   },
@@ -25,7 +25,7 @@ const heroSlides = [
     title: 'Encontre histórias do seu jeito.',
   },
   {
-    image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=1200&q=85',
+    image: 'https://img.br.my-best.com/product_images/a690879f85ddc667cb6ea3531124cc25.jpg?ixlib=rails-4.3.1&q=70&lossless=0&w=800&h=800&fit=clip&s=95598940497c0d3d322494802ce03250',
     eyebrow: 'Cultura pop em destaque',
     title: 'Clássicos, novidades e muita personalidade.',
   },
