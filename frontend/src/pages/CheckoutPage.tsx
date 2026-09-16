@@ -68,7 +68,7 @@ export function CheckoutPage() {
         throw new Error('Não foi possível registrar o pedido')
       }
 
-      clearCart()
+      await clearCart()
       toast({ title: 'Pedido confirmado', status: 'success', duration: 3000, isClosable: true })
       navigate('/pedidos')
     } catch (error) {

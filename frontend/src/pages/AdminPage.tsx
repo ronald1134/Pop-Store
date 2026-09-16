@@ -14,15 +14,23 @@ import {
   Stack,
   Text,
   Textarea,
+  Table,
+  TableContainer,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
   useToast,
 } from '@chakra-ui/react'
-import { useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
 import { API_URL } from '../services/api'
 
 export function AdminPage() {
-  const { refreshProducts, isAdmin, token } = useProducts()
+  const { products, refreshProducts, isAdmin, token } = useProducts()
   const toast = useToast()
   const navigate = useNavigate()
   const [form, setForm] = useState({
@@ -33,15 +41,49 @@ export function AdminPage() {
     description: '',
     rating: '5',
   })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [users, setUsers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([])
+
+  const requestHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+
+  const loadUsers = async () => {
+    const response = await fetch(`${API_URL}/api/admin/users`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+
+    if (!response.ok) {
+      throw new Error('Não foi possível carregar os usuários')
+    }
+
+    setUsers(await response.json())
+  }
+
+  useEffect(() => {
+    if (isAdmin && token) {
+      loadUsers().catch((error) => console.error(error))
+    }
+  }, [isAdmin, token])
+
+  const resetForm = () => {
+    setEditingId(null)
+    setForm({
+      title: '',
+      category: 'Mangá',
+      price: '0',
+      image: '',
+      description: '',
+      rating: '5',
+    })
+  }
 
   const handleSubmit = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      const response = await fetch(`${API_URL}/api/products${editingId ? `/${editingId}` : ''}`, {
+        method: editingId ? 'PUT' : 'POST',
+        headers: requestHeaders,
         body: JSON.stringify({
           title: form.title,
           category: form.category,
@@ -55,19 +97,11 @@ export function AdminPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || 'Erro ao cadastrar produto')
+        throw new Error(data.message || 'Erro ao salvar produto')
       }
 
-      toast({ title: 'Produto cadastrado', status: 'success', duration: 3000, isClosable: true })
-
-      setForm({
-        title: '',
-        category: 'Mangá',
-        price: '0',
-        image: '',
-        description: '',
-        rating: '5',
-      })
+      toast({ title: editingId ? 'Produto atualizado' : 'Produto cadastrado', status: 'success', duration: 3000, isClosable: true })
+      resetForm()
 
       await refreshProducts()
     } catch (error) {
@@ -78,6 +112,57 @@ export function AdminPage() {
         isClosable: true,
       })
       console.error(error)
+    }
+  }
+
+  const startEditing = (product: (typeof products)[number]) => {
+    setEditingId(product.id)
+    setForm({
+      title: product.title,
+      category: product.category,
+      price: String(product.price),
+      image: product.image,
+      description: product.description,
+      rating: String(product.rating),
+    })
+  }
+
+  const deleteProduct = async (id: number) => {
+    try {
+      const response = await fetch(`${API_URL}/api/products/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = response.status === 204 ? null : await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.message || 'Erro ao excluir produto')
+      }
+
+      if (editingId === id) resetForm()
+      await refreshProducts()
+      toast({ title: 'Produto excluído', status: 'success', duration: 3000, isClosable: true })
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Erro ao excluir produto', status: 'error', duration: 3000, isClosable: true })
+    }
+  }
+
+  const deleteUser = async (id: number) => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = response.status === 204 ? null : await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.message || 'Erro ao excluir usuário')
+      }
+
+      setUsers((currentUsers) => currentUsers.filter((user) => user.id !== id))
+      toast({ title: 'Usuário excluído', status: 'success', duration: 3000, isClosable: true })
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Erro ao excluir usuário', status: 'error', duration: 3000, isClosable: true })
     }
   }
 
@@ -180,10 +265,51 @@ export function AdminPage() {
 
           <Flex justify="flex-end">
             <Button colorScheme="pink" size="lg" onClick={handleSubmit}>
-              Cadastrar produto
+              {editingId ? 'Salvar alterações' : 'Cadastrar produto'}
             </Button>
+            {editingId && (
+              <Button variant="ghost" onClick={resetForm}>
+                Cancelar edição
+              </Button>
+            )}
           </Flex>
         </Stack>
+      </Box>
+
+      <Box mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+        <Heading as="h2" size="md" mb={5}>Produtos cadastrados</Heading>
+        <TableContainer>
+          <Table variant="simple">
+            <Thead><Tr><Th color="gray.400">Produto</Th><Th color="gray.400">Categoria</Th><Th color="gray.400">Preço</Th><Th color="gray.400">Ações</Th></Tr></Thead>
+            <Tbody>
+              {products.map((product) => (
+                <Tr key={product.id}>
+                  <Td>{product.title}</Td>
+                  <Td>{product.category}</Td>
+                  <Td>R$ {product.price.toFixed(2)}</Td>
+                  <Td><Flex gap={2}><Button size="sm" leftIcon={<Pencil size={14} />} onClick={() => startEditing(product)}>Editar</Button><Button size="sm" colorScheme="red" variant="ghost" leftIcon={<Trash2 size={14} />} onClick={() => deleteProduct(product.id)}>Excluir</Button></Flex></Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </TableContainer>
+      </Box>
+
+      <Box mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+        <Heading as="h2" size="md" mb={5}>Usuários cadastrados</Heading>
+        <TableContainer>
+          <Table variant="simple">
+            <Thead><Tr><Th color="gray.400">Nome</Th><Th color="gray.400">E-mail</Th><Th color="gray.400">Perfil</Th><Th color="gray.400">Ações</Th></Tr></Thead>
+            <Tbody>
+              {users.map((user) => (
+                <Tr key={user.id}>
+                  <Td>{user.name}</Td><Td>{user.email}</Td><Td>{user.role}</Td>
+                  <Td><Button size="sm" colorScheme="red" variant="ghost" leftIcon={<Trash2 size={14} />} onClick={() => deleteUser(user.id)}>Excluir</Button></Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </TableContainer>
       </Box>
     </Box>
   )

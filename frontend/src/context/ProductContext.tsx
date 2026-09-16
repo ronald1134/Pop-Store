@@ -25,13 +25,13 @@ type ProductContextType = {
   token: string
   isAdmin: boolean
   isAuthenticated: boolean
-  addToCart: (product: Product) => void
-  removeFromCart: (id: number) => void
-  clearCart: () => void
+  addToCart: (product: Product) => Promise<void>
+  removeFromCart: (id: number) => Promise<void>
+  clearCart: () => Promise<void>
   total: number
   loading: boolean
   refreshProducts: () => Promise<void>
-  loginSession: (payload: { token: string; user: UserProfile }) => void
+  loginSession: (payload: { token: string; user: UserProfile }) => Promise<void>
   logout: () => void
 }
 
@@ -45,13 +45,13 @@ const ProductContext = createContext<ProductContextType>({
   token: '',
   isAdmin: false,
   isAuthenticated: false,
-  addToCart: () => {},
-  removeFromCart: () => {},
-  clearCart: () => {},
+  addToCart: async () => {},
+  removeFromCart: async () => {},
+  clearCart: async () => {},
   total: 0,
   loading: true,
   refreshProducts: async () => {},
-  loginSession: () => {},
+  loginSession: async () => {},
   logout: () => {},
 })
 
@@ -97,8 +97,13 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (user) {
+      localStorage.removeItem(CART_STORAGE_KEY)
+      return
+    }
+
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
-  }, [cart])
+  }, [cart, user])
 
   useEffect(() => {
     if (user) {
@@ -116,19 +121,104 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token])
 
-  const addToCart = (product: Product) => {
+  const loadUserCart = async (authToken: string) => {
+    const response = await fetch(`${API_URL}/api/cart`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+
+    if (!response.ok) {
+      throw new Error('Não foi possível carregar o carrinho')
+    }
+
+    const data = (await response.json()) as Array<{ product: Product; quantity: number }>
+    setCart(data.flatMap((item) => Array.from({ length: item.quantity }, () => item.product)))
+  }
+
+  useEffect(() => {
+    if (user && token) {
+      loadUserCart(token).catch((error) => console.error(error))
+    }
+  }, [])
+
+  const addToCart = async (product: Product) => {
+    if (user && token) {
+      const response = await fetch(`${API_URL}/api/cart/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ productId: product.id }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Não foi possível reservar o produto')
+      }
+    }
+
     setCart((prev) => [...prev, product])
   }
 
-  const removeFromCart = (id: number) => {
+  const removeFromCart = async (id: number) => {
+    if (user && token) {
+      const response = await fetch(`${API_URL}/api/cart/items/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.ok) {
+        throw new Error('Não foi possível remover o produto')
+      }
+    }
+
     setCart((prev) => prev.filter((item) => item.id !== id))
   }
 
-  const clearCart = () => {
+  const clearCart = async () => {
+    if (user && token) {
+      const response = await fetch(`${API_URL}/api/cart`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.ok) {
+        throw new Error('Não foi possível limpar o carrinho')
+      }
+    }
+
     setCart([])
   }
 
-  const loginSession = ({ token: nextToken, user: nextUser }: { token: string; user: UserProfile }) => {
+  const loginSession = async ({ token: nextToken, user: nextUser }: { token: string; user: UserProfile }) => {
+    const productQuantities = Object.entries(
+      cart.reduce<Record<number, number>>((acc, item) => {
+        acc[item.id] = (acc[item.id] ?? 0) + 1
+        return acc
+      }, {}),
+    )
+
+    try {
+      await Promise.all(
+        productQuantities.map(([productId, quantity]) =>
+          fetch(`${API_URL}/api/cart/items`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${nextToken}`,
+            },
+            body: JSON.stringify({ productId: Number(productId), quantity }),
+          }).then((response) => {
+            if (!response.ok) {
+              throw new Error('Não foi possível sincronizar o carrinho')
+            }
+          }),
+        ),
+      )
+      await loadUserCart(nextToken)
+    } catch (error) {
+      console.error(error)
+    }
+
     setToken(nextToken)
     setUser(nextUser)
   }

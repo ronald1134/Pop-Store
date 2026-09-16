@@ -40,7 +40,7 @@ const productSchema = z.object({
   title: z.string().min(2),
   category: z.string().min(2),
   price: z.number().positive(),
-  image: z.string().url(),
+  image: z.string().min(1),
   description: z.string().min(10),
   rating: z.number().min(0).max(5),
 })
@@ -64,6 +64,11 @@ const orderSchema = z.object({
     }),
   ),
   total: z.number().positive(),
+})
+
+const cartItemSchema = z.object({
+  productId: z.number().int().positive(),
+  quantity: z.number().int().min(1).default(1),
 })
 
 const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -117,6 +122,93 @@ app.post('/api/products', authMiddleware, async (req, res) => {
 
   const product = await prisma.product.create({ data: parsed.data })
   res.status(201).json(product)
+})
+
+app.put('/api/products/:id', authMiddleware, async (req, res) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Acesso restrito ao administrador' })
+  }
+
+  const productId = Number(req.params.id)
+  const parsed = productSchema.safeParse(req.body)
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ message: 'Produto inválido' })
+  }
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() })
+  }
+
+  const product = await prisma.product.update({
+    where: { id: productId },
+    data: parsed.data,
+  })
+
+  res.json(product)
+})
+
+app.delete('/api/products/:id', authMiddleware, async (req, res) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Acesso restrito ao administrador' })
+  }
+
+  const productId = Number(req.params.id)
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ message: 'Produto inválido' })
+  }
+
+  const orderItems = await prisma.orderItem.count({ where: { productId } })
+
+  if (orderItems > 0) {
+    return res.status(409).json({ message: 'Produto usado em pedidos não pode ser excluído' })
+  }
+
+  await prisma.$transaction([
+    prisma.cartItem.deleteMany({ where: { productId } }),
+    prisma.product.delete({ where: { id: productId } }),
+  ])
+
+  res.status(204).send()
+})
+
+app.get('/api/admin/users', authMiddleware, async (req, res) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Acesso restrito ao administrador' })
+  }
+
+  const users = await prisma.user.findMany({
+    select: { id: true, name: true, email: true, role: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  res.json(users)
+})
+
+app.delete('/api/admin/users/:id', authMiddleware, async (req, res) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Acesso restrito ao administrador' })
+  }
+
+  const userId = Number(req.params.id)
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ message: 'Usuário inválido' })
+  }
+
+  if (userId === req.user.id) {
+    return res.status(400).json({ message: 'O administrador não pode excluir a própria conta' })
+  }
+
+  const orders = await prisma.order.count({ where: { userId } })
+
+  if (orders > 0) {
+    return res.status(409).json({ message: 'Usuário com pedidos não pode ser excluído' })
+  }
+
+  await prisma.user.delete({ where: { id: userId } })
+  res.status(204).send()
 })
 
 app.post('/api/auth/register', async (req, res) => {
@@ -176,6 +268,67 @@ app.post('/api/auth/login', async (req, res) => {
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     token,
   })
+})
+
+app.get('/api/cart', authMiddleware, async (req, res) => {
+  const cartItems = await prisma.cartItem.findMany({
+    where: { userId: req.user!.id },
+    include: { product: true },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  res.json(cartItems)
+})
+
+app.post('/api/cart/items', authMiddleware, async (req, res) => {
+  const parsed = cartItemSchema.safeParse(req.body)
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() })
+  }
+
+  const product = await prisma.product.findUnique({ where: { id: parsed.data.productId } })
+
+  if (!product) {
+    return res.status(404).json({ message: 'Produto não encontrado' })
+  }
+
+  const cartItem = await prisma.cartItem.upsert({
+    where: {
+      userId_productId: {
+        userId: req.user!.id,
+        productId: parsed.data.productId,
+      },
+    },
+    update: { quantity: { increment: parsed.data.quantity } },
+    create: {
+      userId: req.user!.id,
+      productId: parsed.data.productId,
+      quantity: parsed.data.quantity,
+    },
+    include: { product: true },
+  })
+
+  res.status(201).json(cartItem)
+})
+
+app.delete('/api/cart/items/:productId', authMiddleware, async (req, res) => {
+  const productId = Number(req.params.productId)
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ message: 'Produto inválido' })
+  }
+
+  await prisma.cartItem.deleteMany({
+    where: { userId: req.user!.id, productId },
+  })
+
+  res.status(204).send()
+})
+
+app.delete('/api/cart', authMiddleware, async (req, res) => {
+  await prisma.cartItem.deleteMany({ where: { userId: req.user!.id } })
+  res.status(204).send()
 })
 
 app.post('/api/orders', authMiddleware, async (req, res) => {

@@ -26,8 +26,8 @@ export function AuthPage() {
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '' })
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
 
-  const saveSession = (token: string, user: { id: number; name: string; email: string; role: string }) => {
-    loginSession({ token, user })
+  const saveSession = async (token: string, user: { id: number; name: string; email: string; role: string }) => {
+    await loginSession({ token, user })
 
     if (user.role === 'ADMIN') {
       navigate('/admin')
@@ -51,7 +51,7 @@ export function AuthPage() {
         throw new Error(data.message || 'Erro no cadastro')
       }
 
-      saveSession(data.token, data.user)
+      await saveSession(data.token, data.user)
       toast({ title: 'Cadastro realizado', status: 'success', duration: 3000, isClosable: true })
     } catch (error) {
       toast({ title: 'Erro ao cadastrar', status: 'error', duration: 3000, isClosable: true })
@@ -73,7 +73,7 @@ export function AuthPage() {
         throw new Error(data.message || 'Erro no login')
       }
 
-      saveSession(data.token, data.user)
+      await saveSession(data.token, data.user)
       toast({ title: 'Login realizado', status: 'success', duration: 3000, isClosable: true })
     } catch (error) {
       toast({ title: 'Erro ao entrar', status: 'error', duration: 3000, isClosable: true })
