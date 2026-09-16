@@ -1,6 +1,8 @@
 import { Box, Button, Flex, Grid, Heading, Image, SimpleGrid, Stack, Text } from '@chakra-ui/react'
-import { ArrowRight, Sparkles, Star } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Sparkles, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import styled from 'styled-components'
 import { useProducts } from '../context/ProductContext'
 
 const categories = [
@@ -11,9 +13,237 @@ const categories = [
   { label: 'Acessórios', accent: 'orange.400', value: 'Acessório' },
 ]
 
+const heroSlides = [
+  {
+    image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=85',
+    eyebrow: 'Leituras que ficam',
+    title: 'Sua próxima obsessão começa aqui.',
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=1200&q=85',
+    eyebrow: 'Universos para colecionar',
+    title: 'Encontre histórias do seu jeito.',
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=1200&q=85',
+    eyebrow: 'Cultura pop em destaque',
+    title: 'Clássicos, novidades e muita personalidade.',
+  },
+]
+
+const PageSection = styled(Box)`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 5rem 1.5rem;
+
+  @media (max-width: 768px) {
+    padding-top: 4rem;
+    padding-bottom: 4rem;
+  }
+`
+
+const HeroSection = styled(PageSection)`
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+`
+
+const HeroLayout = styled(Flex)`
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+
+  @media (max-width: 992px) {
+    flex-direction: column;
+  }
+`
+
+const HeroCopy = styled(Box)`
+  flex: 1;
+`
+
+const HeroActions = styled(Flex)`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+`
+
+const HeroCarousel = styled(Box)`
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 1rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+`
+
+const Slide = styled(Box)<{ $active: boolean }>`
+  position: absolute;
+  inset: 0;
+  opacity: ${({ $active }) => ($active ? 1 : 0)};
+  pointer-events: ${({ $active }) => ($active ? 'auto' : 'none')};
+  transition: opacity 0.7s ease-in-out;
+`
+
+const SlideImage = styled(Image)`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`
+
+const SlideOverlay = styled(Box)`
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 65%);
+`
+
+const SlideContent = styled(Box)`
+  position: absolute;
+  right: 1.25rem;
+  bottom: 2rem;
+  left: 2rem;
+
+  @media (max-width: 768px) {
+    bottom: 1.5rem;
+    left: 1.25rem;
+  }
+`
+
+const CarouselControls = styled(Flex)`
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  left: 1rem;
+  justify-content: space-between;
+`
+
+const CarouselButton = styled(Button)`
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+
+  &:hover {
+    background: #ec4899;
+  }
+`
+
+const CarouselIndicators = styled(Flex)`
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1rem;
+  gap: 0.5rem;
+`
+
+const CarouselIndicator = styled(Box)<{ $active: boolean }>`
+  width: ${({ $active }) => ($active ? '26px' : '8px')};
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: ${({ $active }) => ($active ? '#f9a8d4' : 'rgba(255, 255, 255, 0.7)')};
+  cursor: pointer;
+  transition: all 0.25s ease;
+`
+
+const SectionBand = styled(Box)`
+  background: #1f2937;
+`
+
+const SectionHeading = styled(Heading)`
+  margin-bottom: 2rem;
+`
+
+const CategoryGrid = styled(SimpleGrid)`
+  animation: floatUp 700ms ease-out both;
+`
+
+const CategoryCard = styled(Box)`
+  padding: 1.5rem;
+  text-align: center;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #f9a8d4;
+    transform: translateY(-2px);
+  }
+`
+
+const CategoryIcon = styled(Box)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 0.75rem;
+  border-radius: 999px;
+`
+
+const ProductsHeader = styled(Flex)`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+`
+
+const ProductGrid = styled(Grid)`
+  gap: 1.5rem;
+`
+
+const ProductCard = styled(Box)`
+  overflow: hidden;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #f9a8d4;
+    transform: translateY(-4px);
+  }
+`
+
+const ProductImage = styled(Image)`
+  width: 100%;
+  height: 280px;
+  padding: 0.75rem;
+  object-fit: contain;
+  background: #111827;
+`
+
+const ProductContent = styled(Box)`
+  padding: 1.25rem;
+`
+
 export function HomePage() {
   const { products, loading } = useProducts()
   const navigate = useNavigate()
+  const [activeSlide, setActiveSlide] = useState(0)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % heroSlides.length)
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const showPreviousSlide = () => {
+    setActiveSlide((current) => (current - 1 + heroSlides.length) % heroSlides.length)
+  }
+
+  const showNextSlide = () => {
+    setActiveSlide((current) => (current + 1) % heroSlides.length)
+  }
 
   const popularProducts = [...products]
     .sort((a, b) => b.rating - a.rating)
@@ -25,9 +255,9 @@ export function HomePage() {
 
   return (
     <Box>
-      <Box maxW="1200px" mx="auto" px={6} py={20}>
-        <Flex direction={{ base: 'column', lg: 'row' }} align="center" justify="space-between" gap={8}>
-          <Box flex={1} className="reveal">
+      <HeroSection>
+        <HeroLayout>
+          <HeroCopy className="reveal">
             <Stack spacing={5}>
               <Text color="pink.300" fontWeight="bold" letterSpacing="wide" textTransform="uppercase">
                 Loja oficial de cultura pop
@@ -38,7 +268,7 @@ export function HomePage() {
               <Text color="gray.300" fontSize="lg">
                 Uma experiência completa para quem ama colecionar, ler e se vestir com estilo.
               </Text>
-              <Flex gap={4} wrap="wrap">
+              <HeroActions>
                 <Button as={Link} to="/produtos" colorScheme="pink" size="lg" rightIcon={<ArrowRight size={18} />}>
                   Ver produtos
                 </Button>
@@ -56,102 +286,121 @@ export function HomePage() {
                 >
                   Meu carrinho
                 </Button>
-              </Flex>
+              </HeroActions>
             </Stack>
-          </Box>
+          </HeroCopy>
 
-          <Box flex={1} className="reveal" maxW="560px">
-            <Image
-              src="https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=900&q=80"
-              alt="Imagem promocional da loja"
-              borderRadius="2xl"
-              boxShadow="soft"
-            />
-          </Box>
-        </Flex>
-      </Box>
+          <HeroCarousel
+            className="reveal"
+            role="region"
+            aria-label="Destaques da loja"
+            aria-roledescription="carrossel"
+          >
+            {heroSlides.map((slide, index) => (
+              <Slide
+                key={slide.image}
+                $active={index === activeSlide}
+              >
+                <SlideImage
+                  src={slide.image}
+                  alt={slide.title}
+                />
+                <SlideOverlay />
+                <SlideContent>
+                  <Text color="pink.200" fontSize="sm" fontWeight="bold" textTransform="uppercase" letterSpacing="wide">
+                    {slide.eyebrow}
+                  </Text>
+                  <Heading as="h2" size={{ base: 'md', md: 'lg' }} mt={2} maxW="400px">
+                    {slide.title}
+                  </Heading>
+                </SlideContent>
+              </Slide>
+            ))}
 
-      <Box bg="gray.800" py={16}>
-        <Box maxW="1200px" mx="auto" px={6}>
-          <Heading as="h2" size="lg" mb={8} className="reveal">
+            <CarouselControls>
+              <CarouselButton
+                aria-label="Imagem anterior"
+                title="Imagem anterior"
+                onClick={showPreviousSlide}
+              >
+                <ArrowLeft size={17} />
+              </CarouselButton>
+              <CarouselButton
+                aria-label="Próxima imagem"
+                title="Próxima imagem"
+                onClick={showNextSlide}
+              >
+                <ArrowRight size={17} />
+              </CarouselButton>
+            </CarouselControls>
+
+            <CarouselIndicators>
+              {heroSlides.map((slide, index) => (
+                <CarouselIndicator
+                  key={slide.title}
+                  as="button"
+                  type="button"
+                  aria-label={`Ir para imagem ${index + 1}`}
+                  aria-current={index === activeSlide ? 'true' : undefined}
+                  onClick={() => setActiveSlide(index)}
+                  $active={index === activeSlide}
+                />
+              ))}
+            </CarouselIndicators>
+          </HeroCarousel>
+        </HeroLayout>
+      </HeroSection>
+
+      <SectionBand>
+        <PageSection>
+          <SectionHeading as="h2" size="lg" className="reveal">
             Categorias em destaque
-          </Heading>
+          </SectionHeading>
 
-          <SimpleGrid columns={{ base: 1, md: 3, lg: 5 }} spacing={6} className="grid-motion">
+          <CategoryGrid columns={{ base: 1, md: 3, lg: 5 }}>
             {categories.map((item) => (
-              <Box
+              <CategoryCard
                 key={item.label}
                 as="button"
                 type="button"
-                bg="gray.900"
-                border="1px solid"
-                borderColor="gray.700"
-                borderRadius="xl"
-                p={6}
-                textAlign="center"
                 className="reveal"
-                cursor="pointer"
-                _hover={{ borderColor: 'pink.300', transform: 'translateY(-2px)' }}
-                transition="all 0.2s ease"
                 onClick={() => handleCategoryClick(item.value)}
                 aria-label={`Ir para a categoria ${item.label}`}
               >
-                <Box
-                  w={12}
-                  h={12}
-                  mx="auto"
-                  borderRadius="full"
-                  bg={item.accent}
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  mb={3}
-                >
+                <CategoryIcon bg={item.accent}>
                   <Sparkles size={18} color="white" />
-                </Box>
+                </CategoryIcon>
                 <Text fontWeight="bold">{item.label}</Text>
-              </Box>
+              </CategoryCard>
             ))}
-          </SimpleGrid>
-        </Box>
-      </Box>
+          </CategoryGrid>
+        </PageSection>
+      </SectionBand>
 
-      <Box maxW="1200px" mx="auto" px={6} py={16}>
-        <Flex align="center" justify="space-between" mb={8} className="reveal" wrap="wrap" gap={4}>
+      <PageSection>
+        <ProductsHeader className="reveal">
           <Heading as="h2" size="lg">
             Produtos populares
           </Heading>
           <Button as={Link} to="/produtos" variant="ghost" colorScheme="pink">
             Ver catálogo completo
           </Button>
-        </Flex>
+        </ProductsHeader>
 
         {loading ? (
           <Text color="gray.300">Carregando produtos...</Text>
         ) : (
-          <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={6}>
+          <ProductGrid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }}>
             {popularProducts.map((product) => (
-              <Box
+              <ProductCard
                 key={product.id}
-                bg="gray.800"
-                borderRadius="xl"
-                overflow="hidden"
-                border="1px solid"
-                borderColor="gray.700"
                 className="reveal"
-                _hover={{ borderColor: 'pink.300', transform: 'translateY(-4px)' }}
-                transition="all 0.2s ease"
               >
-                <Image
+                <ProductImage
                   src={product.image}
                   alt={product.title}
-                  h="280px"
-                  objectFit="contain"
-                  w="100%"
-                  bg="gray.900"
-                  p={3}
                 />
-                <Box p={5}>
+                <ProductContent>
                   <Text color="pink.300" fontSize="sm" fontWeight="bold">
                     {product.category}
                   </Text>
@@ -170,12 +419,12 @@ export function HomePage() {
                       {product.rating.toFixed(1)}
                     </Text>
                   </Flex>
-                </Box>
-              </Box>
+                </ProductContent>
+              </ProductCard>
             ))}
-          </Grid>
+          </ProductGrid>
         )}
-      </Box>
+      </PageSection>
     </Box>
   )
 }
