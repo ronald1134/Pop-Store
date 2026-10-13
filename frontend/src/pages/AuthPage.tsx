@@ -4,7 +4,10 @@ import {
   FormControl,
   FormLabel,
   Heading,
+  IconButton,
   Input,
+  InputGroup,
+  InputRightElement,
   Stack,
   Tab,
   TabList,
@@ -14,6 +17,7 @@ import {
   Text,
   useToast,
 } from '@chakra-ui/react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
@@ -25,6 +29,8 @@ export function AuthPage() {
   const { loginSession } = useProducts()
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '' })
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
 
   const saveSession = async (token: string, user: { id: number; name: string; email: string; role: string }) => {
     await loginSession({ token, user })
@@ -105,6 +111,11 @@ export function AuthPage() {
                   <FormLabel>Email</FormLabel>
                   <Input
                     type="email"
+                    placeholder="Email"
+                    bg="gray.700"
+                    color="white"
+                    _placeholder={{ color: 'gray.300', opacity: 1 }}
+                    _focus={{ borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' }}
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                   />
@@ -112,11 +123,32 @@ export function AuthPage() {
 
                 <FormControl>
                   <FormLabel>Senha</FormLabel>
-                  <Input
-                    type="password"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  />
+                  <InputGroup>
+                    <Input
+                      type={showLoginPassword ? 'text' : 'password'}
+                      placeholder="Senha"
+                      pr="3rem"
+                      bg="gray.700"
+                      color="white"
+                      _placeholder={{ color: 'gray.300', opacity: 1 }}
+                      _focus={{ borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' }}
+                      value={loginForm.password}
+                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    />
+                    <InputRightElement width="3rem">
+                      <IconButton
+                        type="button"
+                        aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        aria-pressed={showLoginPassword}
+                        icon={showLoginPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        variant="ghost"
+                        size="sm"
+                        color={showLoginPassword ? 'white' : 'gray.300'}
+                        _hover={{ bg: 'transparent' }}
+                      />
+                    </InputRightElement>
+                  </InputGroup>
                 </FormControl>
 
                 <Button colorScheme="pink" onClick={handleLogin}>
@@ -130,6 +162,10 @@ export function AuthPage() {
                 <FormControl>
                   <FormLabel>Nome</FormLabel>
                   <Input
+                    bg="gray.700"
+                    color="white"
+                    _placeholder={{ color: 'gray.300', opacity: 1 }}
+                    _focus={{ borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' }}
                     value={registerForm.name}
                     onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
                   />
@@ -139,6 +175,10 @@ export function AuthPage() {
                   <FormLabel>Email</FormLabel>
                   <Input
                     type="email"
+                    bg="gray.700"
+                    color="white"
+                    _placeholder={{ color: 'gray.300', opacity: 1 }}
+                    _focus={{ borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' }}
                     value={registerForm.email}
                     onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
                   />
@@ -146,11 +186,31 @@ export function AuthPage() {
 
                 <FormControl>
                   <FormLabel>Senha</FormLabel>
-                  <Input
-                    type="password"
-                    value={registerForm.password}
-                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                  />
+                  <InputGroup>
+                    <Input
+                      type={showRegisterPassword ? 'text' : 'password'}
+                      pr="3rem"
+                      bg="gray.700"
+                      color="white"
+                      _placeholder={{ color: 'gray.300', opacity: 1 }}
+                      _focus={{ borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' }}
+                      value={registerForm.password}
+                      onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                    />
+                    <InputRightElement width="3rem">
+                      <IconButton
+                        type="button"
+                        aria-label={showRegisterPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        aria-pressed={showRegisterPassword}
+                        icon={showRegisterPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                        onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        variant="ghost"
+                        size="sm"
+                        color={showRegisterPassword ? 'white' : 'gray.300'}
+                        _hover={{ bg: 'transparent' }}
+                      />
+                    </InputRightElement>
+                  </InputGroup>
                 </FormControl>
 
                 <Button colorScheme="pink" onClick={handleRegister}>
