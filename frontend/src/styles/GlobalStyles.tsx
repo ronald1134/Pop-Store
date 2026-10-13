@@ -2,7 +2,7 @@ import { createGlobalStyle } from 'styled-components'
 
 export const GlobalStyles = createGlobalStyle`
   :root {
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     line-height: 1.5;
     font-weight: 400;
     color: #f8fafc;

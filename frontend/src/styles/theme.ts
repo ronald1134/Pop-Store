@@ -21,8 +21,8 @@ export const theme = extendTheme({
     },
   },
   fonts: {
-    heading: `'Segoe UI', sans-serif`,
-    body: `'Segoe UI', sans-serif`,
+    heading: `'Literata', Georgia, serif`,
+    body: `'DM Sans', sans-serif`,
   },
   shadows: {
     soft: '0 20px 45px rgba(15, 23, 42, 0.12)',
