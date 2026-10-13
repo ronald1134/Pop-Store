@@ -124,12 +124,6 @@ const CarouselButton = styled(Button)`
   height: 36px;
   padding: 0;
   border-radius: 999px;
-  color: white;
-  background: rgba(0, 0, 0, 0.6);
-
-  &:hover {
-    background: #ec4899;
-  }
 `
 
 const CarouselIndicators = styled(Flex)`
@@ -321,16 +315,28 @@ export function HomePage() {
               <CarouselButton
                 aria-label="Imagem anterior"
                 title="Imagem anterior"
+                bg="dark.700"
+                color="white"
+                border="1px solid"
+                borderColor="whiteAlpha.400"
+                _hover={{ bg: 'dark.800', borderColor: 'whiteAlpha.700' }}
+                _active={{ bg: 'dark.900' }}
                 onClick={showPreviousSlide}
               >
-                <ArrowLeft size={17} />
+                <ArrowLeft size={17} style={{ flexShrink: 0 }} />
               </CarouselButton>
               <CarouselButton
                 aria-label="Próxima imagem"
                 title="Próxima imagem"
+                bg="dark.700"
+                color="white"
+                border="1px solid"
+                borderColor="whiteAlpha.400"
+                _hover={{ bg: 'dark.800', borderColor: 'whiteAlpha.700' }}
+                _active={{ bg: 'dark.900' }}
                 onClick={showNextSlide}
               >
-                <ArrowRight size={17} />
+                <ArrowRight size={17} style={{ flexShrink: 0 }} />
               </CarouselButton>
             </CarouselControls>
 
