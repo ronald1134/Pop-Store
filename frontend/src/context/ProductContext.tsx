@@ -37,6 +37,64 @@ type ProductContextType = {
 
 const AUTH_STORAGE_KEY = 'culturePopAuth'
 const CART_STORAGE_KEY = 'culturePopCart'
+const catalogImage = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
+
+const demoProducts: Product[] = [
+  {
+    id: 1,
+    title: 'One Piece Vol. 1',
+    category: 'Mangá',
+    price: 29.9,
+    image: catalogImage('images/catalog/one-piece-vol-1.png'),
+    description: 'Primeiro volume da aventura mais famosa da cultura pop.',
+    rating: 5,
+  },
+  {
+    id: 2,
+    title: 'O Hobbit',
+    category: 'Livro',
+    price: 39.9,
+    image: catalogImage('images/catalog/o-hobbit.png'),
+    description: 'Uma leitura clássica para fãs de fantasia e aventura.',
+    rating: 4,
+  },
+  {
+    id: 3,
+    title: 'Batman: Ano Um',
+    category: 'HQ',
+    price: 44.9,
+    image: catalogImage('images/catalog/batman-ano-um.png'),
+    description: 'História emblemática do cavaleiro das trevas.',
+    rating: 5,
+  },
+  {
+    id: 4,
+    title: 'Kindle Colorsoft',
+    category: 'Kindle',
+    price: 329.9,
+    image: catalogImage('images/catalog/Kindle-Colorsoft.png'),
+    description: 'Leitura leve, prática, perfeita para fãs de livros digitais.',
+    rating: 4,
+  },
+  {
+    id: 5,
+    title: 'Caneca Geek',
+    category: 'Acessório',
+    price: 49.9,
+    image: catalogImage('images/catalog/caneca-geek.png'),
+    description: 'Caneca com design para quem vive na cultura pop.',
+    rating: 4,
+  },
+  {
+    id: 6,
+    title: 'Dragon Ball',
+    category: 'Mangá',
+    price: 45,
+    image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUXYuzCOjvPE6kZpdhgUkdBOw48hRjIL1_JpIyddsXOQ&s=10',
+    description: 'Dragon Ball volume 22',
+    rating: 5,
+  },
+]
 
 const ProductContext = createContext<ProductContextType>({
   products: [],
@@ -81,12 +139,28 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const loadProducts = async () => {
+    if (!API_URL) {
+      setProducts(demoProducts)
+      setLoading(false)
+      return
+    }
+
     try {
       const response = await fetch(`${API_URL}/api/products`)
+      if (!response.ok) {
+        throw new Error('Não foi possível carregar os produtos da API')
+      }
+
       const data = await response.json()
-      setProducts(data)
+      setProducts(
+        data.map((product: Product) => ({
+          ...product,
+          image: product.image.startsWith('http') ? product.image : catalogImage(product.image),
+        })),
+      )
     } catch (error) {
       console.error('Erro ao carregar produtos:', error)
+      setProducts(demoProducts)
     } finally {
       setLoading(false)
     }
