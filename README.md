@@ -1,49 +1,85 @@
-# Pop-Store
-🚀 Projeto de e-commerce de cultura pop com foco em mangás, livros, HQs, Kindle e acessórios geek. Desenvolvido com React, Express, Prisma e SQLite, incluindo cadastro, login, carrinho, pedidos e área administrativa 💙
+# Cultura Pop Store
 
-# Cultura Pop Store 🛍️
-
-Projeto de e-commerce de cultura pop, com foco em mangás, livros, HQs, Kindle e acessórios geek 💫
-
-## Sobre o projeto
-Este projeto foi desenvolvido como uma aplicação full stack para simular uma loja online de produtos ligados à cultura pop e geek.  
-A ideia é apresentar um catálogo de produtos, permitir cadastro e login de usuários, além de oferecer uma área administrativa para gerenciar os itens da loja.
-
-## Tecnologias utilizadas
-- React + TypeScript + Vite
-- Express + TypeScript
-- Prisma + SQLite
-- JWT + bcryptjs
-- Chakra UI
-- CORS
+Loja demonstrativa de cultura pop com catálogo de mangás, livros, HQs, Kindle e acessórios. O projeto usa React, TypeScript, Vite, Express, Prisma e SQLite.
 
 ## Funcionalidades
-- Catálogo de produtos
-- Carrinho de compras
-- Cadastro e login de usuários
-- Área administrativa para gerenciamento
-- Banco local com SQLite
-- Layout responsivo e visual moderno
 
-## Login de demonstração
-- Admin: `admin@culturepop.com`
+- Catálogo com busca e filtro por categoria
+- Cadastro e login com e-mail e senha
+- Carrinho persistente por usuário
+- Registro e consulta de pedidos
+- Painel administrativo para produtos e usuários
+- Layout responsivo
+
+## Requisitos
+
+- Node.js 20 ou superior
+- npm incluído com o Node.js
+
+## Configuração local
+
+Execute os comandos a partir da pasta raiz do repositório.
+
+1. Instale as dependências:
+
+```bash
+npm install
+```
+
+2. Crie o arquivo de ambiente do backend a partir do exemplo.
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example backend/.env
+```
+
+macOS/Linux:
+
+```bash
+cp .env.example backend/.env
+```
+
+O exemplo configura o SQLite local em `backend/prisma/dev.db` e a API na porta `3001`. O arquivo `.env` é ignorado pelo Git.
+
+3. Gere o Prisma Client, crie/atualize o banco e carregue os dados de demonstração:
+
+```bash
+npm run db:generate
+npm run db:push
+npm run db:seed
+```
+
+4. Inicie frontend e backend juntos:
+
+```bash
+npm run dev
+```
+
+Frontend: `http://localhost:5173`
+API: `http://localhost:3001`
+Verificação da API: `http://localhost:3001/api/health`
+
+O Vite pode usar a porta `5174` se a `5173` já estiver ocupada; essa origem também está liberada pelo backend.
+
+## Comandos úteis
+
+```bash
+npm test       # testes HTTP do backend
+npm run build  # compila backend e frontend para produção
+```
+
+Os testes usam um Prisma simulado, não iniciam um banco nem alteram os dados locais.
+
+## Conta de demonstração
+
+- E-mail: `admin@culturepop.com`
 - Senha: `admin123`
 
-## Como rodar o projeto
+O backend recria essa conta de demonstração ao iniciar. Use-a somente no ambiente local; não publique essas credenciais.
 
-### 1. Clone o repositório
-```bash
-git clone <https://github.com/ronald1134/Pop-Store.git>
-cd Projeto-faculdade
+## Limitações atuais
 
-Estrutura do projeto
-Projeto-faculdade/
-├── backend/
-│   ├── prisma/
-│   ├── src/
-│   └── .env
-├── frontend/
-│   ├── src/
-│   └── public/
-├── package.json
-└── README.md
+- O endpoint de pagamento é simulado e aprova a transação sem integrar um provedor. Não use para cobrar compras reais.
+- Antes de publicar, configure segredos fortes para o JWT, restrinja as origens CORS ao domínio publicado e implemente um provedor de pagamento com cálculo de valores no servidor.
+- O SQLite local é apropriado para desenvolvimento e demonstração, não para uma loja com tráfego e requisitos de disponibilidade de produção.
