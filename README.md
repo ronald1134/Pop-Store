@@ -71,6 +71,26 @@ npm run build  # compila backend e frontend para produção
 
 Os testes usam um Prisma simulado, não iniciam um banco nem alteram os dados locais.
 
+## Publicação no GitHub Pages
+
+O workflow publica somente o frontend, pois o GitHub Pages não executa o backend Express nem o banco SQLite.
+
+1. No repositório `ronald1134/Pop-Store`, abra **Settings > Pages** e selecione **GitHub Actions** como fonte de publicação.
+2. Envie as alterações para a branch `main`. O workflow em `.github/workflows/deploy.yml` executa os testes, compila o frontend e publica `frontend/dist`.
+3. Acompanhe a execução na aba **Actions**. Quando ela concluir, o site estará em `https://ronald1134.github.io/Pop-Store/`.
+
+O prefixo `/Pop-Store/` é aplicado apenas no GitHub Actions; o desenvolvimento local continua usando a raiz do Vite. O arquivo `404.html` permite que rotas do React Router continuem funcionando ao atualizar a página.
+
+Para habilitar login, catálogo vindo do banco, carrinho e pedidos no site publicado, hospede o backend separadamente e crie a variável de repositório `VITE_API_URL` em **Settings > Secrets and variables > Actions > Variables**. Informe a URL base da API, sem `/api` no final. Configure também o `CORS_ORIGIN` do backend com `https://ronald1134.github.io`. Sem um backend hospedado, essas funções não estarão disponíveis no Pages.
+
+Para publicar as alterações locais, revise `git status`, faça commit dos arquivos de deploy e envie para `main`:
+
+```bash
+git add .github/workflows/deploy.yml frontend/vite.config.ts frontend/src/main.tsx frontend/src/services/api.ts frontend/index.html frontend/public/favicon.ico README.md
+git commit -m "Configura deploy do frontend no GitHub Pages"
+git push origin main
+```
+
 ## Conta de demonstração
 
 - E-mail: `admin@culturepop.com`
