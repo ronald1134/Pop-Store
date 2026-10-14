@@ -197,9 +197,6 @@ export function AdminPage() {
         <Heading as="h2" size="md" mb={6}>
           {editingId !== null ? 'Editar produto' : 'Cadastrar produto'}
         </Heading>
-        <Text color="gray.300" mb={6}>
-          Conta demo: admin@culturepop.com / admin123
-        </Text>
 
         <Divider mb={6} />
 

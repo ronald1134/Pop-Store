@@ -91,13 +91,6 @@ git commit -m "Configura deploy do frontend no GitHub Pages"
 git push origin main
 ```
 
-## Conta de demonstração
-
-- E-mail: `admin@culturepop.com`
-- Senha: `admin123`
-
-O backend recria essa conta de demonstração ao iniciar. Use-a somente no ambiente local; não publique essas credenciais.
-
 ## Limitações atuais
 
 - O endpoint de pagamento é simulado e aprova a transação sem integrar um provedor. Não use para cobrar compras reais.

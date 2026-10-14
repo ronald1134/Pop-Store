@@ -14,7 +14,6 @@ import {
   TabPanel,
   TabPanels,
   Tabs,
-  Text,
   useToast,
 } from '@chakra-ui/react'
 import { Eye, EyeOff } from 'lucide-react'
@@ -94,10 +93,6 @@ export function AuthPage() {
       </Heading>
 
       <Box mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
-        <Text color="gray.300" fontSize="sm" mb={6}>
-          Demo administrativa: admin@culturepop.com / admin123
-        </Text>
-
         <Tabs variant="soft-rounded" colorScheme="pink">
           <TabList>
             <Tab>Entrar</Tab>
