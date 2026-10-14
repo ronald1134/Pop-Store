@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "test": "tsx --test tests/server.test.ts",
     "start": "node dist/server.js",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
@@ -15,6 +16,7 @@
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^6.0.0",
