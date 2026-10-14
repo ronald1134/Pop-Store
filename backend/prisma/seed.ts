@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { hashPassword } from '../src/auth.js'
 
@@ -52,27 +53,73 @@ const products = [
     description: 'Dragon Ball volume 22',
     rating: 5,
   },
+  {
+    title: 'ben 10 dynamite',
+    category: 'HQ',
+    price: 37.99,
+    image: 'https://www.comicsandsignatures.com/cdn/shop/files/0426DE0608.jpg?v=1775022294',
+    description: 'ben 10 reboot',
+    rating: 4,
+  },
+  {
+    title: 'Chainsaw Man Vol. 1',
+    category: 'Mangá',
+    price: 37.9,
+    image: 'https://covers.openlibrary.org/b/isbn/9781974709939-L.jpg',
+    description: 'O início da jornada de Denji e Pochita.',
+    rating: 4.8,
+  },
+  {
+    title: 'Demon Slayer Vol. 1',
+    category: 'Mangá',
+    price: 39.9,
+    image: 'https://covers.openlibrary.org/b/isbn/9781974700523-L.jpg',
+    description: 'Tanjiro parte em busca de uma cura para sua irmã.',
+    rating: 4.9,
+  },
+  {
+    title: 'Watchmen',
+    category: 'HQ',
+    price: 89.9,
+    image: 'https://covers.openlibrary.org/b/isbn/9781401245252-L.jpg',
+    description: 'Uma investigação muda a visão de um grupo de vigilantes.',
+    rating: 4.9,
+  },
+  {
+    title: 'Sandman: Prelúdios e Noturnos',
+    category: 'HQ',
+    price: 79.9,
+    image: 'https://covers.openlibrary.org/b/isbn/9781401225759-L.jpg',
+    description: 'O começo da saga de Sonho e dos Perpétuos.',
+    rating: 4.8,
+  },
+  {
+    title: 'Duna',
+    category: 'Livro',
+    price: 59.9,
+    image: 'https://covers.openlibrary.org/b/isbn/9780441172719-L.jpg',
+    description: 'Intrigas, profecias e disputas pelo planeta Arrakis.',
+    rating: 4.7,
+  },
+  {
+    title: 'Coraline',
+    category: 'Livro',
+    price: 44.9,
+    image: 'https://covers.openlibrary.org/b/isbn/9780380977789-L.jpg',
+    description: 'Uma porta secreta leva Coraline a um mundo inquietante.',
+    rating: 4.6,
+  },
+  {
+    title: 'Caderno de Anotações Geek',
+    category: 'Acessório',
+    price: 34.9,
+    image: 'https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=800&q=85',
+    description: 'Caderno para registrar leituras, ideias e coleções.',
+    rating: 4.5,
+  },
 ]
 
 async function main() {
-  const currentProductTitles = new Set(products.map((product) => product.title))
-
-  const existingProducts = await prisma.product.findMany({
-    include: { orderItems: true },
-  })
-
-  for (const existingProduct of existingProducts) {
-    if (!currentProductTitles.has(existingProduct.title)) {
-      if (existingProduct.orderItems.length > 0) {
-        await prisma.orderItem.deleteMany({
-          where: { productId: existingProduct.id },
-        })
-      }
-
-      await prisma.product.delete({ where: { id: existingProduct.id } })
-    }
-  }
-
   for (const product of products) {
     const existingProduct = await prisma.product.findFirst({
       where: { title: product.title },
@@ -95,7 +142,6 @@ async function main() {
     where: { email: 'admin@culturepop.com' },
     update: {
       name: 'Administrador',
-      password: adminPassword,
       role: 'ADMIN',
     },
     create: {

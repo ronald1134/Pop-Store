@@ -81,7 +81,7 @@ O workflow publica somente o frontend, pois o GitHub Pages não executa o backen
 
 O prefixo `/Pop-Store/` é aplicado apenas no GitHub Actions; o desenvolvimento local continua usando a raiz do Vite. O arquivo `404.html` permite que rotas do React Router continuem funcionando ao atualizar a página.
 
-Sem backend, o frontend mostra um catálogo estático com seis produtos de demonstração. Para habilitar login, catálogo dinâmico vindo do banco, carrinho e pedidos, hospede o backend separadamente e crie a variável de repositório `VITE_API_URL` em **Settings > Secrets and variables > Actions > Variables**. Informe a URL base da API, sem `/api` no final. Configure também o `CORS_ORIGIN` do backend com `https://ronald1134.github.io`.
+Sem backend, o frontend mostra um catálogo estático com 14 produtos de demonstração. Para habilitar login, catálogo dinâmico vindo do banco, carrinho e pedidos, hospede o backend separadamente e crie a variável de repositório `VITE_API_URL` em **Settings > Secrets and variables > Actions > Variables**. Informe a URL base da API, sem `/api` no final. Configure também o `CORS_ORIGIN` do backend com `https://ronald1134.github.io`.
 
 Para publicar as alterações locais, revise `git status`, faça commit dos arquivos de deploy e envie para `main`:
 
