@@ -42,6 +42,8 @@ function createTestDatabase() {
   const orders: Array<{
     id: number
     userId: number
+    subtotal: number
+    shipping: number
     total: number
     createdAt: Date
     items: Array<{
@@ -90,6 +92,13 @@ function createTestDatabase() {
         )
       },
       create: async ({ data }: any) => addUser(data),
+      update: async ({ where, data }: any) => {
+        const user = users.get(where.id)
+        if (!user) throw new Error('Usuário não encontrado')
+        const updatedUser = { ...user, ...data }
+        users.set(where.id, updatedUser)
+        return updatedUser
+      },
       findMany: async ({ where = {} }: any = {}) =>
         [...users.values()].filter(
           (user) => !where.role || user.role === where.role,
@@ -164,6 +173,8 @@ function createTestDatabase() {
         const order = {
           id: nextOrderId++,
           userId: data.userId,
+          subtotal: data.subtotal,
+          shipping: data.shipping,
           total: data.total,
           createdAt: new Date(),
           items: data.items.create.map(
@@ -348,11 +359,36 @@ test('pedidos exigem autenticação e ficam associados ao usuário autenticado',
     const orderResponse = await fetch(
       `${baseUrl}/api/orders`,
       jsonRequest(
-        { items: [{ productId: 1, quantity: 2 }], total: 50 },
+        { items: [{ productId: 1, quantity: 2 }], total: 1 },
         signToken(firstUser.id),
       ),
     )
     assert.equal(orderResponse.status, 201)
+    const order = await orderResponse.json()
+    assert.equal(order.subtotal, 50)
+    assert.equal(order.shipping, 19.9)
+    assert.equal(order.total, 69.9)
+
+    const quoteResponse = await fetch(
+      `${baseUrl}/api/checkout/quote`,
+      jsonRequest({ items: [{ productId: 1, quantity: 2 }], total: 1 }),
+    )
+    assert.equal(quoteResponse.status, 200)
+    assert.deepEqual(await quoteResponse.json(), {
+      subtotal: 50,
+      shipping: 19.9,
+      total: 69.9,
+    })
+
+    const paymentResponse = await fetch(
+      `${baseUrl}/api/payments/checkout`,
+      jsonRequest(
+        { items: [{ productId: 1, quantity: 2 }], total: 1 },
+        signToken(firstUser.id),
+      ),
+    )
+    assert.equal(paymentResponse.status, 200)
+    assert.equal((await paymentResponse.json()).total, 69.9)
 
     const firstOrdersResponse = await fetch(`${baseUrl}/api/orders`, {
       headers: { Authorization: `Bearer ${signToken(firstUser.id)}` },
@@ -399,6 +435,42 @@ test('somente administradores podem acessar as rotas de gestão', async () => {
       headers: { Authorization: `Bearer ${signToken(customer.id)}` },
     })
     assert.equal(deniedUserList.status, 403)
+
+    const deniedPasswordReset = await fetch(
+      `${baseUrl}/api/admin/users/${customer.id}/password`,
+      {
+        ...jsonRequest({ newPassword: 'senhaNovaSegura' }, signToken(customer.id)),
+        method: 'PATCH',
+      },
+    )
+    assert.equal(deniedPasswordReset.status, 403)
+
+    const resetResponse = await fetch(
+      `${baseUrl}/api/admin/users/${customer.id}/password`,
+      {
+        ...jsonRequest({ newPassword: 'senhaNovaSegura' }, signToken(admin.id)),
+        method: 'PATCH',
+      },
+    )
+    assert.equal(resetResponse.status, 200)
+    assert.deepEqual(await resetResponse.json(), {
+      message: 'Senha redefinida com sucesso',
+    })
+
+    const loginWithNewPassword = await fetch(
+      `${baseUrl}/api/auth/login`,
+      jsonRequest({ email: customer.email, password: 'senhaNovaSegura' }),
+    )
+    assert.equal(loginWithNewPassword.status, 200)
+
+    const rejectedShortPassword = await fetch(
+      `${baseUrl}/api/admin/users/${customer.id}/password`,
+      {
+        ...jsonRequest({ newPassword: 'curta' }, signToken(admin.id)),
+        method: 'PATCH',
+      },
+    )
+    assert.equal(rejectedShortPassword.status, 400)
   })
 })
 

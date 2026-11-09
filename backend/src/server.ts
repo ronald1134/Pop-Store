@@ -11,6 +11,7 @@ import {
   signToken,
   verifyToken,
 } from './auth.js'
+import { createPasswordResetRouter } from './password-reset.js'
 
 export function createApp(prisma: PrismaClient) {
   const app = express()
@@ -72,15 +73,47 @@ export function createApp(prisma: PrismaClient) {
     password: z.string().min(6),
   })
 
-  const orderSchema = z.object({
+  const checkoutSchema = z.object({
     items: z.array(
       z.object({
-        productId: z.number(),
-        quantity: z.number().min(1),
+        productId: z.number().int().positive(),
+        quantity: z.number().int().min(1),
       }),
-    ),
-    total: z.number().positive(),
+    ).min(1),
   })
+
+  // O frete permanece fixo até existir uma regra de cálculo por endereço ou peso.
+  const SHIPPING_CENTS = 1990
+
+  // Busca preços no banco e calcula os valores em centavos para evitar erros de ponto flutuante.
+  const calculateCheckoutTotals = async (
+    items: Array<{ productId: number; quantity: number }>,
+  ) => {
+    const products = await Promise.all(
+      items.map((item) =>
+        prisma.product.findUnique({ where: { id: item.productId } }),
+      ),
+    )
+
+    if (products.some((product) => !product)) {
+      return null
+    }
+
+    const subtotalCents = items.reduce((sum, item, index) => {
+      const product = products[index]!
+      return sum + Math.round(product.price * 100) * item.quantity
+    }, 0)
+    const totalCents = subtotalCents + SHIPPING_CENTS
+
+    return {
+      // Soma dos preços vigentes no catálogo multiplicados pelas quantidades.
+      subtotal: subtotalCents / 100,
+      // Valor fixo cobrado pela entrega, definido em SHIPPING_CENTS.
+      shipping: SHIPPING_CENTS / 100,
+      // Valor efetivamente cobrado: subtotal mais frete.
+      total: totalCents / 100,
+    }
+  }
 
   const cartItemSchema = z.object({
     productId: z.number().int().positive(),
@@ -119,6 +152,8 @@ export function createApp(prisma: PrismaClient) {
       return res.status(401).json({ message: 'Token inválido' })
     }
   }
+
+  app.use('/api/admin', createPasswordResetRouter(prisma, authMiddleware))
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, message: 'API funcionando' })
@@ -392,17 +427,42 @@ export function createApp(prisma: PrismaClient) {
     res.status(204).send()
   })
 
-  app.post('/api/orders', authMiddleware, async (req, res) => {
-    const parsed = orderSchema.safeParse(req.body)
+  // Retorna o resumo calculado com os preços atuais do catálogo, sem aceitar valores do cliente.
+  app.post('/api/checkout/quote', async (req, res) => {
+    const parsed = checkoutSchema.safeParse(req.body)
 
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() })
     }
 
+    const totals = await calculateCheckoutTotals(parsed.data.items)
+
+    if (!totals) {
+      return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+
+    res.json(totals)
+  })
+
+  app.post('/api/orders', authMiddleware, async (req, res) => {
+    const parsed = checkoutSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() })
+    }
+
+    const totals = await calculateCheckoutTotals(parsed.data.items)
+
+    if (!totals) {
+      return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+
     const order = await prisma.order.create({
       data: {
         userId: req.user!.id,
-        total: parsed.data.total,
+        subtotal: totals.subtotal,
+        shipping: totals.shipping,
+        total: totals.total,
         items: {
           create: parsed.data.items.map((item) => ({
             productId: item.productId,
@@ -441,17 +501,23 @@ export function createApp(prisma: PrismaClient) {
   })
 
   app.post('/api/payments/checkout', authMiddleware, async (req, res) => {
-    const { total } = req.body as { total: number }
+    const parsed = checkoutSchema.safeParse(req.body)
 
-    if (!total || total <= 0) {
-      return res.status(400).json({ message: 'Total inválido' })
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() })
+    }
+
+    const totals = await calculateCheckoutTotals(parsed.data.items)
+
+    if (!totals) {
+      return res.status(404).json({ message: 'Produto não encontrado' })
     }
 
     res.json({
       ok: true,
       paymentId: `pay_${Date.now()}`,
       status: 'approved',
-      total,
+      ...totals,
     })
   })
 

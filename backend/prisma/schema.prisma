@@ -34,6 +34,8 @@ model Product {
 model Order {
   id        Int        @id @default(autoincrement())
   userId    Int
+  subtotal  Float?     // Subtotal calculado pelo backend; nulo em pedidos antigos.
+  shipping  Float?     // Frete calculado pelo backend; nulo quando não foi registrado.
   total     Float
   createdAt DateTime   @default(now())
   user      User       @relation(fields: [userId], references: [id])
