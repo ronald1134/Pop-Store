@@ -92,7 +92,15 @@ export function OrdersPage() {
                       Realizado em {formatDate(order.createdAt)}
                     </Text>
                   </Box>
-                  <Text fontWeight="bold">Total: R$ {Number(order.total).toFixed(2)}</Text>
+                  <Stack spacing={1} align={{ base: 'flex-start', md: 'flex-end' }}>
+                    <Text fontSize="sm" color="gray.300">
+                      Subtotal: R$ {Number(order.subtotal ?? order.total).toFixed(2)}
+                    </Text>
+                    <Text fontSize="sm" color="gray.300">
+                      Frete: {order.shipping == null ? 'não registrado' : `R$ ${Number(order.shipping).toFixed(2)}`}
+                    </Text>
+                    <Text fontWeight="bold">Total: R$ {Number(order.total).toFixed(2)}</Text>
+                  </Stack>
                 </Flex>
 
                 <Divider my={4} />

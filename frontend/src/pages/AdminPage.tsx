@@ -7,7 +7,10 @@ import {
   FormLabel,
   Grid,
   Heading,
+  IconButton,
   Input,
+  InputGroup,
+  InputRightElement,
   NumberInput,
   NumberInputField,
   Select,
@@ -20,10 +23,11 @@ import {
   Td,
   Th,
   Thead,
+  Tooltip,
   Tr,
   useToast,
 } from '@chakra-ui/react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, KeyRound, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
@@ -43,6 +47,8 @@ export function AdminPage() {
   })
   const [editingId, setEditingId] = useState<number | null>(null)
   const [users, setUsers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([])
+  const [passwordDrafts, setPasswordDrafts] = useState<Record<number, string>>({})
+  const [visiblePasswordDrafts, setVisiblePasswordDrafts] = useState<Record<number, boolean>>({})
   const formRef = useRef<HTMLDivElement>(null)
 
   const requestHeaders = {
@@ -166,6 +172,31 @@ export function AdminPage() {
       toast({ title: 'Usuário excluído', status: 'success', duration: 3000, isClosable: true })
     } catch (error) {
       toast({ title: error instanceof Error ? error.message : 'Erro ao excluir usuário', status: 'error', duration: 3000, isClosable: true })
+    }
+  }
+
+  const resetUserPassword = async (id: number) => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${id}/password`, {
+        method: 'PATCH',
+        headers: requestHeaders,
+        body: JSON.stringify({ newPassword: passwordDrafts[id] ?? '' }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error?.fieldErrors?.newPassword?.[0] || 'Erro ao redefinir senha')
+      }
+
+      setPasswordDrafts((current) => ({ ...current, [id]: '' }))
+      toast({ title: 'Senha redefinida', status: 'success', duration: 3000, isClosable: true })
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Erro ao redefinir senha',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
     }
   }
 
@@ -301,13 +332,68 @@ export function AdminPage() {
       <Box mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
         <Heading as="h2" size="md" mb={5}>Usuários cadastrados</Heading>
         <TableContainer>
-          <Table variant="simple">
+          <Table variant="simple" size="sm" fontSize="sm">
             <Thead><Tr><Th color="gray.400">Nome</Th><Th color="gray.400">E-mail</Th><Th color="gray.400">Perfil</Th><Th color="gray.400">Ações</Th></Tr></Thead>
             <Tbody>
               {users.map((user) => (
                 <Tr key={user.id}>
                   <Td>{user.name}</Td><Td>{user.email}</Td><Td>{user.role}</Td>
-                  <Td><Button size="sm" colorScheme="red" variant="ghost" leftIcon={<Trash2 size={14} />} onClick={() => deleteUser(user.id)}>Excluir</Button></Td>
+                  <Td>
+                    <Flex gap={1} align="center" minW="0">
+                      <InputGroup size="sm" maxW="220px" minW="0" flex="1">
+                        <Input
+                          type={visiblePasswordDrafts[user.id] ? 'text' : 'password'}
+                          pr="2.25rem"
+                          placeholder="Nova senha (mín. 8)"
+                          aria-label={`Nova senha para ${user.email}`}
+                          value={passwordDrafts[user.id] ?? ''}
+                          onChange={(event) =>
+                            setPasswordDrafts((current) => ({
+                              ...current,
+                              [user.id]: event.target.value,
+                            }))
+                          }
+                        />
+                        <InputRightElement width="2.25rem">
+                          <Tooltip label={visiblePasswordDrafts[user.id] ? 'Ocultar senha' : 'Exibir senha'}>
+                            <IconButton
+                              size="xs"
+                              variant="ghost"
+                              color="gray.300"
+                              aria-label={visiblePasswordDrafts[user.id] ? 'Ocultar senha' : 'Exibir senha'}
+                              aria-pressed={Boolean(visiblePasswordDrafts[user.id])}
+                              icon={visiblePasswordDrafts[user.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                              onClick={() =>
+                                setVisiblePasswordDrafts((current) => ({
+                                  ...current,
+                                  [user.id]: !current[user.id],
+                                }))
+                              }
+                            />
+                          </Tooltip>
+                        </InputRightElement>
+                      </InputGroup>
+                      <Tooltip label="Redefinir senha">
+                        <IconButton
+                          size="sm"
+                          aria-label={`Redefinir senha de ${user.email}`}
+                          icon={<KeyRound size={14} />}
+                          onClick={() => resetUserPassword(user.id)}
+                          isDisabled={(passwordDrafts[user.id] ?? '').length < 8}
+                        />
+                      </Tooltip>
+                      <Tooltip label="Excluir usuário">
+                        <IconButton
+                          size="sm"
+                          colorScheme="red"
+                          variant="ghost"
+                          aria-label={`Excluir ${user.email}`}
+                          icon={<Trash2 size={14} />}
+                          onClick={() => deleteUser(user.id)}
+                        />
+                      </Tooltip>
+                    </Flex>
+                  </Td>
                 </Tr>
               ))}
             </Tbody>

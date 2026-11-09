@@ -12,34 +12,64 @@ import {
   useToast,
 } from '@chakra-ui/react'
 import { Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
 import { API_URL } from '../services/api'
 
 export function CheckoutPage() {
-  const { cart, removeFromCart, total, user, token, clearCart } = useProducts()
+  const { cart, removeFromCart, user, token, clearCart } = useProducts()
   const navigate = useNavigate()
   const toast = useToast()
+  const [totals, setTotals] = useState<{
+    subtotal: number
+    shipping: number
+    total: number
+  } | null>(null)
+
+  const groupedItems = Object.values(
+    cart.reduce<Record<number, { productId: number; quantity: number }>>((acc, item) => {
+      const existingItem = acc[item.id]
+
+      if (existingItem) {
+        existingItem.quantity += 1
+        return acc
+      }
+
+      acc[item.id] = { productId: item.id, quantity: 1 }
+      return acc
+    }, {}),
+  )
+
+  useEffect(() => {
+    if (groupedItems.length === 0) {
+      setTotals(null)
+      return
+    }
+
+    fetch(`${API_URL}/api/checkout/quote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: groupedItems }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível calcular o pedido')
+        }
+
+        setTotals(await response.json())
+      })
+      .catch((error) => {
+        setTotals(null)
+        console.error(error)
+      })
+  }, [cart])
 
   const handleFinishPurchase = async () => {
     if (!user) {
       navigate('/auth')
       return
     }
-
-    const groupedItems = Object.values(
-      cart.reduce<Record<number, { productId: number; quantity: number }>>((acc, item) => {
-        const existingItem = acc[item.id]
-
-        if (existingItem) {
-          existingItem.quantity += 1
-          return acc
-        }
-
-        acc[item.id] = { productId: item.id, quantity: 1 }
-        return acc
-      }, {}),
-    )
 
     try {
       const paymentResponse = await fetch(`${API_URL}/api/payments/checkout`, {
@@ -48,7 +78,7 @@ export function CheckoutPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ total }),
+        body: JSON.stringify({ items: groupedItems }),
       })
 
       if (!paymentResponse.ok) {
@@ -61,7 +91,7 @@ export function CheckoutPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ items: groupedItems, total }),
+        body: JSON.stringify({ items: groupedItems }),
       })
 
       if (!orderResponse.ok) {
@@ -135,11 +165,11 @@ export function CheckoutPage() {
               <Divider />
               <Flex justify="space-between">
                 <Text>Subtotal</Text>
-                <Text>R$ {total.toFixed(2)}</Text>
+                <Text>{totals ? `R$ ${totals.subtotal.toFixed(2)}` : 'Calculando...'}</Text>
               </Flex>
               <Flex justify="space-between">
                 <Text>Frete</Text>
-                <Text>R$ 19,90</Text>
+                <Text>{totals ? `R$ ${totals.shipping.toFixed(2)}` : 'Calculando...'}</Text>
               </Flex>
               <Flex justify="space-between">
                 <Text>Entrega estimada</Text>
@@ -148,7 +178,7 @@ export function CheckoutPage() {
               <Divider />
               <Flex justify="space-between" fontWeight="bold" fontSize="lg">
                 <Text>Total</Text>
-                <Text>R$ {(total + 19.9).toFixed(2)}</Text>
+                <Text>{totals ? `R$ ${totals.total.toFixed(2)}` : 'Calculando...'}</Text>
               </Flex>
               <Button colorScheme="pink" size="lg" onClick={handleFinishPurchase}>
                 Finalizar compra
