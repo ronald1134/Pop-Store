@@ -21,6 +21,8 @@ export type UserProfile = {
 type ProductContextType = {
   products: Product[]
   cart: Product[]
+  favorites: Product[]
+  favoritesLoading: boolean
   user: UserProfile | null
   token: string
   isAdmin: boolean
@@ -28,6 +30,7 @@ type ProductContextType = {
   addToCart: (product: Product) => Promise<void>
   removeFromCart: (id: number) => Promise<void>
   clearCart: () => Promise<void>
+  toggleFavorite: (product: Product) => Promise<void>
   total: number
   loading: boolean
   refreshProducts: () => Promise<void>
@@ -171,6 +174,8 @@ const demoProducts: Product[] = [
 const ProductContext = createContext<ProductContextType>({
   products: [],
   cart: [],
+  favorites: [],
+  favoritesLoading: false,
   user: null,
   token: '',
   isAdmin: false,
@@ -178,6 +183,7 @@ const ProductContext = createContext<ProductContextType>({
   addToCart: async () => {},
   removeFromCart: async () => {},
   clearCart: async () => {},
+  toggleFavorite: async () => {},
   total: 0,
   loading: true,
   refreshProducts: async () => {},
@@ -206,6 +212,8 @@ const readStoredCart = () => {
 export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<Product[]>(() => readStoredCart())
+  const [favorites, setFavorites] = useState<Product[]>([])
+  const [favoritesLoading, setFavoritesLoading] = useState(true)
   const [user, setUser] = useState<UserProfile | null>(() => readStoredUser())
   const [token, setToken] = useState(() => localStorage.getItem('culturePopToken') ?? '')
   const [loading, setLoading] = useState(true)
@@ -286,6 +294,37 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    let active = true
+
+    if (!user || !token) {
+      setFavorites([])
+      setFavoritesLoading(false)
+      return () => { active = false }
+    }
+
+    setFavoritesLoading(true)
+    fetch(`${API_URL}/api/favorites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar os favoritos')
+        }
+
+        const data = (await response.json()) as Array<{ product: Product }>
+        if (active) {
+          setFavorites(data.map((favorite) => favorite.product))
+        }
+      })
+      .catch((error) => console.error(error))
+      .finally(() => {
+        if (active) setFavoritesLoading(false)
+      })
+
+    return () => { active = false }
+  }, [token, user])
+
   const addToCart = async (product: Product) => {
     if (user && token) {
       const response = await fetch(`${API_URL}/api/cart/items`, {
@@ -335,6 +374,28 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     setCart([])
   }
 
+  const toggleFavorite = async (product: Product) => {
+    if (!user || !token) {
+      throw new Error('Entre na sua conta para salvar favoritos')
+    }
+
+    const isFavorite = favorites.some((favorite) => favorite.id === product.id)
+    const response = await fetch(`${API_URL}/api/favorites/${product.id}`, {
+      method: isFavorite ? 'DELETE' : 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!response.ok) {
+      throw new Error('Não foi possível atualizar seus favoritos')
+    }
+
+    setFavorites((current) =>
+      isFavorite
+        ? current.filter((favorite) => favorite.id !== product.id)
+        : [product, ...current],
+    )
+  }
+
   const loginSession = async ({ token: nextToken, user: nextUser }: { token: string; user: UserProfile }) => {
     const productQuantities = Object.entries(
       cart.reduce<Record<number, number>>((acc, item) => {
@@ -373,6 +434,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setToken('')
     setCart([])
+    setFavorites([])
   }
 
   const total = useMemo(
@@ -385,6 +447,8 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       value={{
         products,
         cart,
+        favorites,
+        favoritesLoading,
         user,
         token,
         isAdmin: user?.role === 'ADMIN',
@@ -392,6 +456,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         addToCart,
         removeFromCart,
         clearCart,
+        toggleFavorite,
         total,
         loading,
         refreshProducts: loadProducts,

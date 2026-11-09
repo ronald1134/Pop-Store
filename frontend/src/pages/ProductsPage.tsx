@@ -6,19 +6,23 @@ import {
   Heading,
   Image,
   Input,
+  IconButton,
   SimpleGrid,
   Stack,
   Text,
 } from '@chakra-ui/react'
 import * as RadixSelect from '@radix-ui/react-select'
-import { Check, ChevronDown, ShoppingCart, Star } from 'lucide-react'
+import { Check, ChevronDown, Heart, ShoppingCart, Star } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useToast } from '@chakra-ui/react'
 import { useProducts } from '../context/ProductContext'
 
 export function ProductsPage() {
-  const { products, addToCart, loading } = useProducts()
+  const { products, addToCart, loading, favorites, toggleFavorite, user } = useProducts()
   const location = useLocation()
+  const navigate = useNavigate()
+  const toast = useToast()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState((location.state as { category?: string } | null)?.category ?? 'all')
 
@@ -38,6 +42,30 @@ export function ProductsPage() {
       return matchesSearch && matchesCategory
     })
   }, [products, search, category])
+
+  const handleFavorite = async (product: (typeof products)[number]) => {
+    if (!user) {
+      navigate('/auth')
+      return
+    }
+
+    try {
+      await toggleFavorite(product)
+      toast({
+        title: favorites.some((favorite) => favorite.id === product.id)
+          ? 'Removido dos favoritos'
+          : 'Adicionado aos favoritos',
+        status: 'success',
+        duration: 2000,
+      })
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Não foi possível atualizar os favoritos',
+        status: 'error',
+        duration: 3000,
+      })
+    }
+  }
 
   return (
     <>
@@ -153,21 +181,33 @@ export function ProductsPage() {
               borderColor="gray.700"
               className="reveal"
             >
-              <Image
-                src={product.image}
-                alt={product.title}
-                h="280px"
-                objectFit="contain"
-                w="100%"
-                bg="gray.900"
-                p={3}
-              />
+              <Box position="relative">
+                <Image
+                  src={product.image}
+                  alt={product.title}
+                  h="280px"
+                  objectFit="contain"
+                  w="100%"
+                  bg="gray.900"
+                  p={3}
+                />
+                <IconButton
+                  aria-label={favorites.some((favorite) => favorite.id === product.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                  icon={<Heart size={18} fill={favorites.some((favorite) => favorite.id === product.id) ? 'currentColor' : 'none'} />}
+                  colorScheme="pink"
+                  variant="solid"
+                  position="absolute"
+                  top={3}
+                  right={3}
+                  onClick={() => handleFavorite(product)}
+                />
+              </Box>
               <Stack p={5} spacing={3}>
                 <Text color="pink.300" fontWeight="bold">
                   {product.category}
                 </Text>
                 <Heading as="h3" size="md">
-                  {product.title}
+                  <Link to={`/produtos/${product.id}`}>{product.title}</Link>
                 </Heading>
                 <Text color="gray.300">{product.description}</Text>
 
@@ -180,6 +220,10 @@ export function ProductsPage() {
                     {product.rating.toFixed(1)}
                   </Text>
                 </Flex>
+
+                <Button as={Link} to={`/produtos/${product.id}`} variant="outline" colorScheme="pink">
+                  Avaliações e comentários
+                </Button>
 
                 <Button
                   leftIcon={<ShoppingCart size={18} />}
