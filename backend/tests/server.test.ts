@@ -39,6 +39,21 @@ function createTestDatabase() {
       updatedAt: Date
     }
   >()
+  const favorites = new Map<string, {
+    id: number
+    userId: number
+    productId: number
+    createdAt: Date
+  }>()
+  const reviews = new Map<string, {
+    id: number
+    userId: number
+    productId: number
+    rating: number
+    comment: string
+    createdAt: Date
+    updatedAt: Date
+  }>()
   const orders: Array<{
     id: number
     userId: number
@@ -55,6 +70,8 @@ function createTestDatabase() {
   let nextUserId = 1
   let nextProductId = 1
   let nextCartItemId = 1
+  let nextFavoriteId = 1
+  let nextReviewId = 1
   let nextOrderId = 1
 
   const addUser = (
@@ -110,10 +127,25 @@ function createTestDatabase() {
       },
     },
     product: {
-      findMany: async () => [...products.values()],
+      findMany: async ({ include }: any = {}) =>
+        [...products.values()].map((product) =>
+          include?.reviews
+            ? {
+                ...product,
+                reviews: [...reviews.values()]
+                  .filter((review) => review.productId === product.id)
+                  .map((review) => ({ rating: review.rating })),
+              }
+            : product,
+        ),
       findUnique: async ({ where }: any) => products.get(where.id) ?? null,
       create: async ({ data }: any) => {
         const product = { id: nextProductId++, ...data, createdAt: new Date() }
+        products.set(product.id, product)
+        return product
+      },
+      update: async ({ where, data }: any) => {
+        const product = { ...products.get(where.id)!, ...data }
         products.set(product.id, product)
         return product
       },
@@ -126,6 +158,68 @@ function createTestDatabase() {
         const product = products.get(where.id)
         if (product) products.delete(where.id)
         return product
+      },
+    },
+    favorite: {
+      findMany: async ({ where }: any) =>
+        [...favorites.values()]
+          .filter((favorite) => favorite.userId === where.userId)
+          .map((favorite) => ({ ...favorite, product: products.get(favorite.productId) })),
+      upsert: async ({ where, create }: any) => {
+        const key = `${where.userId_productId.userId}:${where.userId_productId.productId}`
+        let favorite = favorites.get(key)
+        if (!favorite) {
+          favorite = { id: nextFavoriteId++, ...create, createdAt: new Date() }
+          favorites.set(key, favorite)
+        }
+        return { ...favorite, product: products.get(favorite.productId) }
+      },
+      deleteMany: async ({ where }: any) => {
+        for (const [key, favorite] of favorites) {
+          if (favorite.userId === where.userId && favorite.productId === where.productId) {
+            favorites.delete(key)
+          }
+        }
+        return { count: 1 }
+      },
+    },
+    review: {
+      findMany: async ({ where }: any) =>
+        [...reviews.values()]
+          .filter((review) => review.productId === where.productId)
+          .map((review) => ({
+            ...review,
+            user: { name: users.get(review.userId)?.name ?? 'Usuário de teste' },
+          })),
+      upsert: async ({ where, update, create }: any) => {
+        const key = `${where.userId_productId.userId}:${where.userId_productId.productId}`
+        const existing = reviews.get(key)
+        const review = existing
+          ? { ...existing, ...update, updatedAt: new Date() }
+          : {
+              id: nextReviewId++,
+              ...create,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+        reviews.set(key, review)
+        return {
+          ...review,
+          user: { name: users.get(review.userId)?.name ?? 'Usuário de teste' },
+        }
+      },
+      aggregate: async ({ where }: any) => {
+        const productReviews = [...reviews.values()].filter(
+          (review) => review.productId === where.productId,
+        )
+        return {
+          _avg: {
+            rating: productReviews.length
+              ? productReviews.reduce((sum, review) => sum + review.rating, 0) /
+                productReviews.length
+              : null,
+          },
+        }
       },
     },
     cartItem: {
@@ -290,25 +384,103 @@ test('cadastro valida os dados, evita duplicidade e permite login', async () => 
   })
 })
 
+test('favoritos exigem autenticação e ficam isolados por usuário', async () => {
+    const database = createTestDatabase()
+    const firstUser = database.addUser({
+      email: 'favorito@example.com',
+      role: 'CUSTOMER',
+    })
+    const secondUser = database.addUser({
+      email: 'outro-favorito@example.com',
+      role: 'CUSTOMER',
+    })
+
+    await withApi(database.prisma, async (baseUrl) => {
+      const anonymousResponse = await fetch(`${baseUrl}/api/favorites`)
+      assert.equal(anonymousResponse.status, 401)
+
+      const addResponse = await fetch(`${baseUrl}/api/favorites/1`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${signToken(firstUser.id)}` },
+      })
+      assert.equal(addResponse.status, 201)
+      assert.equal((await addResponse.json()).product.id, 1)
+
+      const firstFavoritesResponse = await fetch(`${baseUrl}/api/favorites`, {
+        headers: { Authorization: `Bearer ${signToken(firstUser.id)}` },
+      })
+      assert.equal((await firstFavoritesResponse.json()).length, 1)
+
+      const secondFavoritesResponse = await fetch(`${baseUrl}/api/favorites`, {
+        headers: { Authorization: `Bearer ${signToken(secondUser.id)}` },
+      })
+      assert.equal((await secondFavoritesResponse.json()).length, 0)
+
+      const missingProductResponse = await fetch(`${baseUrl}/api/favorites/999`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${signToken(firstUser.id)}` },
+      })
+      assert.equal(missingProductResponse.status, 404)
+
+      const removeResponse = await fetch(`${baseUrl}/api/favorites/1`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${signToken(firstUser.id)}` },
+      })
+      assert.equal(removeResponse.status, 204)
+      const afterRemoval = await fetch(`${baseUrl}/api/favorites`, {
+        headers: { Authorization: `Bearer ${signToken(firstUser.id)}` },
+      })
+      assert.equal((await afterRemoval.json()).length, 0)
+    })
+})
+
+test('avaliações são públicas, exigem autenticação para envio e atualizam a nota', async () => {
+  const database = createTestDatabase()
+  const firstUser = database.addUser({ email: 'avaliacao@example.com', role: 'CUSTOMER' })
+  const secondUser = database.addUser({ email: 'outra-avaliacao@example.com', role: 'CUSTOMER' })
+
+  await withApi(database.prisma, async (baseUrl) => {
+    const anonymousPost = await fetch(`${baseUrl}/api/products/1/reviews`, jsonRequest({ rating: 5, comment: 'Muito bom' }))
+    assert.equal(anonymousPost.status, 401)
+
+    const invalidRating = await fetch(`${baseUrl}/api/products/1/reviews`, jsonRequest({ rating: 6, comment: 'Muito bom' }, signToken(firstUser.id)))
+    assert.equal(invalidRating.status, 400)
+
+    const firstReview = await fetch(`${baseUrl}/api/products/1/reviews`, jsonRequest({ rating: 4, comment: 'Gostei bastante' }, signToken(firstUser.id)))
+    assert.equal(firstReview.status, 201)
+
+    const secondReview = await fetch(`${baseUrl}/api/products/1/reviews`, jsonRequest({ rating: 2, comment: 'Esperava mais' }, signToken(secondUser.id)))
+    assert.equal(secondReview.status, 201)
+
+    const listResponse = await fetch(`${baseUrl}/api/products/1/reviews`)
+    const list = await listResponse.json()
+    assert.equal(list.totalReviews, 2)
+    assert.equal(list.averageRating, 3)
+
+    const updateReview = await fetch(`${baseUrl}/api/products/1/reviews`, jsonRequest({ rating: 5, comment: 'Mudei de ideia, adorei' }, signToken(firstUser.id)))
+    assert.equal(updateReview.status, 201)
+
+    const updatedListResponse = await fetch(`${baseUrl}/api/products/1/reviews`)
+    const updatedList = await updatedListResponse.json()
+    assert.equal(updatedList.totalReviews, 2)
+    assert.equal(updatedList.averageRating, 3.5)
+
+    const productsResponse = await fetch(`${baseUrl}/api/products`)
+    const products = await productsResponse.json()
+    assert.equal(products[0].rating, 3.5)
+  })
+})
+
 test('carrinho exige autenticação e mantém os itens isolados por usuário', async () => {
   const database = createTestDatabase()
-  const firstUser = database.addUser({
-    email: 'primeiro@example.com',
-    role: 'CUSTOMER',
-  })
-  const secondUser = database.addUser({
-    email: 'segundo@example.com',
-    role: 'CUSTOMER',
-  })
+  const firstUser = database.addUser({ email: 'primeiro@example.com', role: 'CUSTOMER' })
+  const secondUser = database.addUser({ email: 'segundo@example.com', role: 'CUSTOMER' })
 
   await withApi(database.prisma, async (baseUrl) => {
     const anonymousResponse = await fetch(`${baseUrl}/api/cart`)
     assert.equal(anonymousResponse.status, 401)
 
-    const addResponse = await fetch(
-      `${baseUrl}/api/cart/items`,
-      jsonRequest({ productId: 1 }, signToken(firstUser.id)),
-    )
+    const addResponse = await fetch(`${baseUrl}/api/cart/items`, jsonRequest({ productId: 1 }, signToken(firstUser.id)))
     assert.equal(addResponse.status, 201)
 
     const firstCartResponse = await fetch(`${baseUrl}/api/cart`, {
@@ -321,14 +493,10 @@ test('carrinho exige autenticação e mantém os itens isolados por usuário', a
     })
     assert.equal((await secondCartResponse.json()).length, 0)
 
-    const missingProductResponse = await fetch(
-      `${baseUrl}/api/cart/items`,
-      jsonRequest({ productId: 999 }, signToken(firstUser.id)),
-    )
+    const missingProductResponse = await fetch(`${baseUrl}/api/cart/items`, jsonRequest({ productId: 999 }, signToken(firstUser.id)))
     assert.equal(missingProductResponse.status, 404)
   })
 })
-
 test('pedidos exigem autenticação e ficam associados ao usuário autenticado', async () => {
   const database = createTestDatabase()
   const firstUser = database.addUser({

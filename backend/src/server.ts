@@ -120,6 +120,11 @@ export function createApp(prisma: PrismaClient) {
     quantity: z.number().int().min(1).default(1),
   })
 
+  const reviewSchema = z.object({
+    rating: z.number().int().min(1).max(5),
+    comment: z.string().trim().min(5).max(1000),
+  })
+
   const authMiddleware = async (
     req: express.Request,
     res: express.Response,
@@ -160,8 +165,129 @@ export function createApp(prisma: PrismaClient) {
   })
 
   app.get('/api/products', async (_req, res) => {
-    const products = await prisma.product.findMany({ orderBy: { id: 'asc' } })
-    res.json(products)
+    const products = await prisma.product.findMany({
+      orderBy: { id: 'asc' },
+      include: { reviews: { select: { rating: true } } },
+    })
+    const productsWithRatings = products.map((product) => {
+      const { reviews, ...productData } = product
+      const average = reviews.length
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+        : product.rating
+      return { ...productData, rating: average }
+    })
+    res.json(productsWithRatings)
+  })
+
+  app.get('/api/products/:productId/reviews', async (req, res) => {
+    const productId = Number(req.params.productId)
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ message: 'Produto inválido' })
+    }
+
+    const product = await prisma.product.findUnique({ where: { id: productId } })
+
+    if (!product) {
+      return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+
+    const reviews = await prisma.review.findMany({
+      where: { productId },
+      include: { user: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    const averageRating = reviews.length
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : product.rating
+
+    res.json({ reviews, averageRating, totalReviews: reviews.length })
+  })
+
+  app.post('/api/products/:productId/reviews', authMiddleware, async (req, res) => {
+    const productId = Number(req.params.productId)
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ message: 'Produto inválido' })
+    }
+
+    const parsed = reviewSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() })
+    }
+
+    const product = await prisma.product.findUnique({ where: { id: productId } })
+
+    if (!product) {
+      return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+
+    const review = await prisma.review.upsert({
+      where: { userId_productId: { userId: req.user!.id, productId } },
+      update: parsed.data,
+      create: { ...parsed.data, userId: req.user!.id, productId },
+      include: { user: { select: { name: true } } },
+    })
+    const aggregate = await prisma.review.aggregate({
+      where: { productId },
+      _avg: { rating: true },
+    })
+    const averageRating = aggregate._avg.rating ?? product.rating
+
+    await prisma.product.update({
+      where: { id: productId },
+      data: { rating: averageRating },
+    })
+
+    res.status(201).json(review)
+  })
+
+  app.get('/api/favorites', authMiddleware, async (req, res) => {
+    const favorites = await prisma.favorite.findMany({
+      where: { userId: req.user!.id },
+      include: { product: true },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    res.json(favorites)
+  })
+
+  app.post('/api/favorites/:productId', authMiddleware, async (req, res) => {
+    const productId = Number(req.params.productId)
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ message: 'Produto inválido' })
+    }
+
+    const product = await prisma.product.findUnique({ where: { id: productId } })
+
+    if (!product) {
+      return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+
+    const favorite = await prisma.favorite.upsert({
+      where: { userId_productId: { userId: req.user!.id, productId } },
+      update: {},
+      create: { userId: req.user!.id, productId },
+      include: { product: true },
+    })
+
+    res.status(201).json(favorite)
+  })
+
+  app.delete('/api/favorites/:productId', authMiddleware, async (req, res) => {
+    const productId = Number(req.params.productId)
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ message: 'Produto inválido' })
+    }
+
+    await prisma.favorite.deleteMany({
+      where: { userId: req.user!.id, productId },
+    })
+
+    res.status(204).send()
   })
 
   app.post('/api/products', authMiddleware, async (req, res) => {
