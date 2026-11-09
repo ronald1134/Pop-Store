@@ -1,5 +1,5 @@
-import { Box, Button, Flex, Grid, Heading, Image, SimpleGrid, Stack, Text } from '@chakra-ui/react'
-import { ArrowLeft, ArrowRight, Sparkles, Star } from 'lucide-react'
+import { Box, Button, Flex, Grid, Heading, IconButton, Image, SimpleGrid, Stack, Text, useToast } from '@chakra-ui/react'
+import { ArrowLeft, ArrowRight, Heart, Sparkles, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
@@ -219,8 +219,9 @@ const ProductContent = styled(Box)`
 `
 
 export function HomePage() {
-  const { products, loading } = useProducts()
+  const { products, loading, favorites, toggleFavorite, user } = useProducts()
   const navigate = useNavigate()
+  const toast = useToast()
   const [activeSlide, setActiveSlide] = useState(0)
 
   useEffect(() => {
@@ -245,6 +246,30 @@ export function HomePage() {
 
   const handleCategoryClick = (category: string) => {
     navigate('/produtos', { state: { category } })
+  }
+
+  const handleFavorite = async (product: (typeof products)[number]) => {
+    if (!user) {
+      navigate('/auth')
+      return
+    }
+
+    try {
+      await toggleFavorite(product)
+      toast({
+        title: favorites.some((favorite) => favorite.id === product.id)
+          ? 'Removido dos favoritos'
+          : 'Adicionado aos favoritos',
+        status: 'success',
+        duration: 2000,
+      })
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Não foi possível atualizar os favoritos',
+        status: 'error',
+        duration: 3000,
+      })
+    }
   }
 
   return (
@@ -402,16 +427,24 @@ export function HomePage() {
                 key={product.id}
                 className="reveal"
               >
-                <ProductImage
-                  src={product.image}
-                  alt={product.title}
-                />
+                <Box position="relative">
+                  <ProductImage src={product.image} alt={product.title} />
+                  <IconButton
+                    aria-label={favorites.some((favorite) => favorite.id === product.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    icon={<Heart size={18} fill={favorites.some((favorite) => favorite.id === product.id) ? 'currentColor' : 'none'} />}
+                    colorScheme="pink"
+                    position="absolute"
+                    top={3}
+                    right={3}
+                    onClick={() => handleFavorite(product)}
+                  />
+                </Box>
                 <ProductContent>
                   <Text color="pink.300" fontSize="sm" fontWeight="bold">
                     {product.category}
                   </Text>
                   <Heading as="h3" size="md" mt={2}>
-                    {product.title}
+                    <Link to={`/produtos/${product.id}`}>{product.title}</Link>
                   </Heading>
                   <Text mt={2} color="gray.300">
                     {product.description}
@@ -425,6 +458,9 @@ export function HomePage() {
                       {product.rating.toFixed(1)}
                     </Text>
                   </Flex>
+                  <Button as={Link} to={`/produtos/${product.id}`} mt={4} variant="outline" colorScheme="pink">
+                    Avaliações e comentários
+                  </Button>
                 </ProductContent>
               </ProductCard>
             ))}

@@ -7,6 +7,8 @@ import { ProductProvider } from './context/ProductContext'
 import { AuthPage } from './pages/AuthPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { AdminPage } from './pages/AdminPage'
+import { FavoritesPage } from './pages/FavoritesPage'
+import { ProductDetailsPage } from './pages/ProductDetailsPage'
 
 export default function App() {
   return (
@@ -15,6 +17,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/produtos" element={<ProductsPage />} />
+          <Route path="/produtos/:id" element={<ProductDetailsPage />} />
+          <Route path="/favoritos" element={<FavoritesPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/pedidos" element={<OrdersPage />} />

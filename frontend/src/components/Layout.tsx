@@ -15,7 +15,7 @@ import {
   Text,
   useDisclosure,
 } from '@chakra-ui/react'
-import { BookOpen, ShoppingCart } from 'lucide-react'
+import { BookOpen, Heart, ShoppingCart } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { ReactNode } from 'react'
 import { useProducts } from '../context/ProductContext'
@@ -28,6 +28,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const navItems = [
     { label: 'Home', to: '/' },
     { label: 'Produtos', to: '/produtos' },
+    { label: 'Favoritos', to: '/favoritos' },
     { label: 'Checkout', to: '/checkout' },
     { label: 'Pedidos', to: '/pedidos' },
   ]
@@ -82,11 +83,15 @@ export function Layout({ children }: { children: ReactNode }) {
           </HStack>
 
           <HStack spacing={3}>
-            <HStack spacing={2} align="center">
-              <Badge colorScheme="pink" borderRadius="full" px={2}>
-                {cart.length}
-              </Badge>
+            <IconButton
+              aria-label="Ir para meus favoritos"
+              icon={<Heart size={18} />}
+              variant="outline"
+              colorScheme="pink"
+              onClick={() => navigate('/favoritos')}
+            />
 
+            <Box position="relative">
               <IconButton
                 aria-label="Ir para o checkout"
                 icon={<ShoppingCart size={18} />}
@@ -99,7 +104,19 @@ export function Layout({ children }: { children: ReactNode }) {
                 _active={{ bg: 'pink.600', borderColor: 'pink.500' }}
                 onClick={() => navigate('/checkout')}
               />
-            </HStack>
+              <Badge
+                position="absolute"
+                top="-2"
+                right="-2"
+                colorScheme="pink"
+                borderRadius="full"
+                minW="5"
+                textAlign="center"
+                pointerEvents="none"
+              >
+                {cart.length}
+              </Badge>
+            </Box>
 
             {user ? (
               <Button

@@ -7,6 +7,8 @@ Loja demonstrativa de cultura pop com catálogo de mangás, livros, HQs, Kindle 
 - Catálogo com busca e filtro por categoria
 - Cadastro e login com e-mail e senha
 - Carrinho persistente por usuário
+- Lista de produtos favoritos por usuário
+- Avaliações com nota e comentários por produto
 - Registro e consulta de pedidos
 - Painel administrativo para produtos e usuários
 - Layout responsivo
@@ -49,6 +51,8 @@ npm run db:generate
 npm run db:push
 npm run db:seed
 ```
+
+Favoritos e avaliações são associados às contas locais. Cada usuário pode manter um favorito por produto e uma avaliação por produto; uma nova avaliação do mesmo usuário atualiza a nota e o comentário anteriores.
 
 4. Inicie frontend e backend juntos:
 
