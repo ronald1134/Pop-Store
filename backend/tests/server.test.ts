@@ -149,11 +149,6 @@ function createTestDatabase() {
         products.set(product.id, product)
         return product
       },
-      update: async ({ where, data }: any) => {
-        const product = { ...products.get(where.id), ...data }
-        products.set(where.id, product)
-        return product
-      },
       delete: async ({ where }: any) => {
         const product = products.get(where.id)
         if (product) products.delete(where.id)
@@ -170,9 +165,9 @@ function createTestDatabase() {
         let favorite = favorites.get(key)
         if (!favorite) {
           favorite = { id: nextFavoriteId++, ...create, createdAt: new Date() }
-          favorites.set(key, favorite)
+          favorites.set(key, favorite!)
         }
-        return { ...favorite, product: products.get(favorite.productId) }
+        return { ...favorite!, product: products.get(favorite!.productId) }
       },
       deleteMany: async ({ where }: any) => {
         for (const [key, favorite] of favorites) {

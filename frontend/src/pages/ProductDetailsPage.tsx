@@ -4,13 +4,13 @@ import {
   Flex,
   Heading,
   Image,
-  Select,
   Stack,
   Text,
   Textarea,
   useToast,
 } from '@chakra-ui/react'
-import { Heart, Star } from 'lucide-react'
+import * as RadixSelect from '@radix-ui/react-select'
+import { Check, ChevronDown, Heart, Star } from 'lucide-react'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
@@ -167,6 +167,62 @@ export function ProductDetailsPage() {
 
   return (
     <Box maxW="1000px" mx="auto" px={6} py={12}>
+      <style>{`
+        .rating-select-trigger {
+          width: 240px;
+          max-width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: rgba(15, 23, 42, 0.28);
+          color: white;
+          border: 1px solid #f472b6;
+          border-radius: 0.75rem;
+          min-height: 42px;
+          padding: 0 12px;
+          font-size: 1rem;
+          cursor: pointer;
+        }
+
+        .rating-select-trigger:hover {
+          border-color: #f9a8d4;
+        }
+
+        .rating-select-trigger:focus {
+          outline: none;
+          box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.6);
+          border-color: #f9a8d4;
+        }
+
+        .rating-select-content {
+          min-width: var(--radix-select-trigger-width);
+          background: rgba(15, 23, 42, 0.96);
+          border: 1px solid #f472b6;
+          border-radius: 0.75rem;
+          overflow: hidden;
+          z-index: 10;
+        }
+
+        .rating-select-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          color: white;
+          cursor: pointer;
+        }
+
+        .rating-select-item[data-highlighted],
+        .rating-select-item[data-state='checked'] {
+          background: rgba(244, 114, 182, 0.18);
+          color: white;
+          outline: none;
+        }
+
+        .rating-select-item-indicator {
+          color: #f9a8d4;
+        }
+      `}</style>
       <Button as={Link} to="/produtos" variant="ghost" colorScheme="pink" mb={6}>Voltar ao catálogo</Button>
       <Flex direction={{ base: 'column', md: 'row' }} gap={8} bg="gray.800" borderRadius="xl" p={{ base: 5, md: 8 }} border="1px solid" borderColor="gray.700">
         <Image src={product.image} alt={product.title} w={{ base: '100%', md: '40%' }} maxH="360px" objectFit="contain" bg="gray.900" borderRadius="lg" p={4} />
@@ -198,11 +254,30 @@ export function ProductDetailsPage() {
         <Heading as="h2" size="lg" mb={6}>Avaliações e comentários</Heading>
         <Box as="form" onSubmit={handleSubmitReview} mb={8}>
           <Stack spacing={4}>
-            <Select value={rating} onChange={(event) => setRating(event.target.value)} aria-label="Nota da avaliação" maxW="240px">
-              {[5, 4, 3, 2, 1].map((value) => (
-                <option key={value} value={value}>{value} {value === 1 ? 'estrela' : 'estrelas'}</option>
-              ))}
-            </Select>
+            <RadixSelect.Root value={rating} onValueChange={setRating}>
+              <RadixSelect.Trigger className="rating-select-trigger" aria-label="Nota da avaliação">
+                <RadixSelect.Value />
+                <RadixSelect.Icon>
+                  <ChevronDown size={18} />
+                </RadixSelect.Icon>
+              </RadixSelect.Trigger>
+              <RadixSelect.Portal>
+                <RadixSelect.Content className="rating-select-content" sideOffset={6} position="popper">
+                  <RadixSelect.Viewport>
+                    {[5, 4, 3, 2, 1].map((value) => (
+                      <RadixSelect.Item key={value} value={String(value)} className="rating-select-item">
+                        <RadixSelect.ItemText>
+                          {value} {value === 1 ? 'estrela' : 'estrelas'}
+                        </RadixSelect.ItemText>
+                        <RadixSelect.ItemIndicator className="rating-select-item-indicator">
+                          <Check size={14} />
+                        </RadixSelect.ItemIndicator>
+                      </RadixSelect.Item>
+                    ))}
+                  </RadixSelect.Viewport>
+                </RadixSelect.Content>
+              </RadixSelect.Portal>
+            </RadixSelect.Root>
             <Textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
@@ -211,6 +286,12 @@ export function ProductDetailsPage() {
               maxLength={1000}
               required
               rows={4}
+              bg="gray.700"
+              color="white"
+              borderColor="gray.600"
+              _placeholder={{ color: 'gray.400', opacity: 1 }}
+              _hover={{ borderColor: 'pink.400' }}
+              _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px var(--chakra-colors-pink-400)' }}
             />
             <Button type="submit" colorScheme="pink" alignSelf="flex-start" isLoading={submitting}>
               {user ? 'Enviar avaliação' : 'Entre para avaliar'}
