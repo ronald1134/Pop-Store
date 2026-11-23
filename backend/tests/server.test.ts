@@ -60,6 +60,8 @@ function createTestDatabase() {
     subtotal: number
     shipping: number
     total: number
+    discount: number
+    couponCode: string | null
     status: string
     createdAt: Date
     items: Array<{
@@ -282,6 +284,8 @@ function createTestDatabase() {
           subtotal: data.subtotal,
           shipping: data.shipping,
           total: data.total,
+          discount: data.discount ?? 0,
+          couponCode: data.couponCode ?? null,
           status: data.status ?? 'PENDING',
           createdAt: new Date(),
           items: data.items.create.map(
@@ -571,6 +575,8 @@ test('pedidos exigem autenticação e ficam associados ao usuário autenticado',
     const order = await orderResponse.json()
     assert.equal(order.subtotal, 50)
     assert.equal(order.shipping, 19.9)
+    assert.equal(order.discount, 0)
+    assert.equal(order.couponCode, null)
     assert.equal(order.total, 69.9)
 
     const quoteResponse = await fetch(
@@ -581,6 +587,8 @@ test('pedidos exigem autenticação e ficam associados ao usuário autenticado',
     assert.deepEqual(await quoteResponse.json(), {
       subtotal: 50,
       shipping: 19.9,
+      discount: 0,
+      couponCode: null,
       total: 69.9,
     })
 
@@ -603,6 +611,101 @@ test('pedidos exigem autenticação e ficam associados ao usuário autenticado',
       headers: { Authorization: `Bearer ${signToken(secondUser.id)}` },
     })
     assert.equal((await secondOrdersResponse.json()).length, 0)
+  })
+})
+
+test('cupons válidos aplicam o desconto no servidor e os inválidos são rejeitados', async () => {
+  const { prisma, addUser } = createTestDatabase()
+  const customer = addUser({
+    email: 'cliente@example.com',
+    role: 'CUSTOMER',
+  })
+
+  await withApi(prisma, async (baseUrl) => {
+    const popQuoteResponse = await fetch(
+      `${baseUrl}/api/checkout/quote`,
+      jsonRequest({
+        items: [{ productId: 1, quantity: 2 }],
+        couponCode: 'pop10',
+        discount: 999,
+        total: 1,
+      }),
+    )
+    assert.equal(popQuoteResponse.status, 200)
+    assert.deepEqual(await popQuoteResponse.json(), {
+      subtotal: 50,
+      shipping: 19.9,
+      discount: 5,
+      couponCode: 'POP10',
+      total: 64.9,
+    })
+
+    const freeShippingResponse = await fetch(
+      `${baseUrl}/api/checkout/quote`,
+      jsonRequest({
+        items: [{ productId: 1, quantity: 2 }],
+        couponCode: 'FRETEGRATIS',
+      }),
+    )
+    assert.deepEqual(await freeShippingResponse.json(), {
+      subtotal: 50,
+      shipping: 0,
+      discount: 0,
+      couponCode: 'FRETEGRATIS',
+      total: 50,
+    })
+
+    const minimumSubtotalQuote = await fetch(
+      `${baseUrl}/api/checkout/quote`,
+      jsonRequest({
+        items: [{ productId: 1, quantity: 4 }],
+        couponCode: 'CULTURA15',
+      }),
+    )
+    assert.equal(minimumSubtotalQuote.status, 200)
+    assert.deepEqual(await minimumSubtotalQuote.json(), {
+      subtotal: 100,
+      shipping: 19.9,
+      discount: 15,
+      couponCode: 'CULTURA15',
+      total: 104.9,
+    })
+
+    const minimumSubtotalResponse = await fetch(
+      `${baseUrl}/api/checkout/quote`,
+      jsonRequest({
+        items: [{ productId: 1, quantity: 2 }],
+        couponCode: 'CULTURA15',
+      }),
+    )
+    assert.equal(minimumSubtotalResponse.status, 400)
+
+    const invalidCouponResponse = await fetch(
+      `${baseUrl}/api/checkout/quote`,
+      jsonRequest({
+        items: [{ productId: 1, quantity: 2 }],
+        couponCode: 'NAOEXISTE',
+      }),
+    )
+    assert.equal(invalidCouponResponse.status, 400)
+
+    const orderResponse = await fetch(
+      `${baseUrl}/api/orders`,
+      jsonRequest(
+        {
+          items: [{ productId: 1, quantity: 2 }],
+          couponCode: 'POP10',
+          discount: 0,
+          total: 1,
+        },
+        signToken(customer.id),
+      ),
+    )
+    assert.equal(orderResponse.status, 201)
+    const order = await orderResponse.json()
+    assert.equal(order.discount, 5)
+    assert.equal(order.couponCode, 'POP10')
+    assert.equal(order.total, 64.9)
   })
 })
 

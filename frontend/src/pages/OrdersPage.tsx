@@ -99,6 +99,16 @@ export function OrdersPage() {
                     <Text fontSize="sm" color="gray.300">
                       Frete: {order.shipping == null ? 'não registrado' : `R$ ${Number(order.shipping).toFixed(2)}`}
                     </Text>
+                    {order.couponCode && (
+                      <Text fontSize="sm" color="green.300">
+                        Cupom aplicado: {order.couponCode}
+                      </Text>
+                    )}
+                    {Number(order.discount ?? 0) > 0 && (
+                      <Text fontSize="sm" color="green.300">
+                        Desconto: -R$ {Number(order.discount).toFixed(2)}
+                      </Text>
+                    )}
                     <Text fontWeight="bold">Total: R$ {Number(order.total).toFixed(2)}</Text>
                   </Stack>
                 </Flex>

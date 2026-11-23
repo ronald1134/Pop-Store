@@ -8,12 +8,12 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        Int        @id @default(autoincrement())
   name      String
-  email     String   @unique
+  email     String     @unique
   password  String
-  role      String   @default("CUSTOMER")
-  createdAt DateTime @default(now())
+  role      String     @default("CUSTOMER")
+  createdAt DateTime   @default(now())
   orders    Order[]
   cartItems CartItem[]
   favorites Favorite[]
@@ -21,14 +21,14 @@ model User {
 }
 
 model Product {
-  id          Int      @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   title       String
   category    String
   price       Float
   image       String
   description String
   rating      Float
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
   orderItems  OrderItem[]
   cartItems   CartItem[]
   favorites   Favorite[]
@@ -62,15 +62,17 @@ model Review {
 }
 
 model Order {
-  id        Int        @id @default(autoincrement())
-  userId    Int
-  subtotal  Float?     // Subtotal calculado pelo backend; nulo em pedidos antigos.
-  shipping  Float?     // Frete calculado pelo backend; nulo quando não foi registrado.
-  total     Float
-  status    String     @default("PENDING")
-  createdAt DateTime   @default(now())
-  user      User       @relation(fields: [userId], references: [id])
-  items     OrderItem[]
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  subtotal   Float? // Subtotal calculado pelo backend; nulo em pedidos antigos.
+  shipping   Float? // Frete calculado pelo backend; nulo quando não foi registrado.
+  total      Float
+  status     String      @default("PENDING")
+  discount   Float       @default(0)
+  couponCode String?
+  createdAt  DateTime    @default(now())
+  user       User        @relation(fields: [userId], references: [id])
+  items      OrderItem[]
 }
 
 model OrderItem {

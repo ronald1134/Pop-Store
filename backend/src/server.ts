@@ -14,6 +14,19 @@ import {
 import { createAdminMetricsRouter } from './admin-metrics.js'
 import { createPasswordResetRouter } from './password-reset.js'
 
+type CheckoutTotals = {
+  subtotal: number
+  shipping: number
+  discount: number
+  couponCode: string | null
+  total: number
+}
+
+type CheckoutCalculationError = {
+  error: string
+  status: 400
+}
+
 export function createApp(prisma: PrismaClient) {
   const app = express()
 
@@ -81,15 +94,29 @@ export function createApp(prisma: PrismaClient) {
         quantity: z.number().int().min(1),
       }),
     ).min(1),
+    couponCode: z.string().trim().max(40).optional(),
   })
 
   // O frete permanece fixo até existir uma regra de cálculo por endereço ou peso.
   const SHIPPING_CENTS = 1990
+  const demoCoupons: Record<
+    string,
+    {
+      type: 'PERCENTAGE' | 'FREE_SHIPPING'
+      value: number
+      minimumSubtotalCents: number
+    }
+  > = {
+    POP10: { type: 'PERCENTAGE', value: 10, minimumSubtotalCents: 0 },
+    CULTURA15: { type: 'PERCENTAGE', value: 15, minimumSubtotalCents: 10000 },
+    FRETEGRATIS: { type: 'FREE_SHIPPING', value: 0, minimumSubtotalCents: 0 },
+  } as const
 
   // Busca preços no banco e calcula os valores em centavos para evitar erros de ponto flutuante.
   const calculateCheckoutTotals = async (
     items: Array<{ productId: number; quantity: number }>,
-  ) => {
+    couponCode?: string,
+  ): Promise<CheckoutTotals | CheckoutCalculationError | null> => {
     const products = await Promise.all(
       items.map((item) =>
         prisma.product.findUnique({ where: { id: item.productId } }),
@@ -104,14 +131,36 @@ export function createApp(prisma: PrismaClient) {
       const product = products[index]!
       return sum + Math.round(product.price * 100) * item.quantity
     }, 0)
-    const totalCents = subtotalCents + SHIPPING_CENTS
+    const normalizedCouponCode = couponCode?.toUpperCase() ?? ''
+    const coupon = normalizedCouponCode ? demoCoupons[normalizedCouponCode] : undefined
+
+    if (normalizedCouponCode && !coupon) {
+      return { error: 'Cupom inválido ou indisponível', status: 400 as const }
+    }
+
+    if (coupon && subtotalCents < coupon.minimumSubtotalCents) {
+      return {
+        error: `O cupom ${normalizedCouponCode} exige compras a partir de R$ 100,00`,
+        status: 400 as const,
+      }
+    }
+
+    const shippingCents =
+      coupon?.type === 'FREE_SHIPPING' ? 0 : SHIPPING_CENTS
+    const discountCents =
+      coupon?.type === 'PERCENTAGE'
+        ? Math.round((subtotalCents * coupon.value) / 100)
+        : 0
+    const totalCents = subtotalCents + shippingCents - discountCents
 
     return {
       // Soma dos preços vigentes no catálogo multiplicados pelas quantidades.
       subtotal: subtotalCents / 100,
       // Valor fixo cobrado pela entrega, definido em SHIPPING_CENTS.
-      shipping: SHIPPING_CENTS / 100,
-      // Valor efetivamente cobrado: subtotal mais frete.
+      shipping: shippingCents / 100,
+      discount: discountCents / 100,
+      couponCode: normalizedCouponCode || null,
+      // Valor efetivamente cobrado: subtotal mais frete menos o desconto.
       total: totalCents / 100,
     }
   }
@@ -563,10 +612,16 @@ export function createApp(prisma: PrismaClient) {
       return res.status(400).json({ error: parsed.error.flatten() })
     }
 
-    const totals = await calculateCheckoutTotals(parsed.data.items)
+    const totals = await calculateCheckoutTotals(
+      parsed.data.items,
+      parsed.data.couponCode,
+    )
 
     if (!totals) {
       return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+    if ('error' in totals) {
+      return res.status(totals.status).json({ message: totals.error })
     }
 
     res.json(totals)
@@ -579,10 +634,16 @@ export function createApp(prisma: PrismaClient) {
       return res.status(400).json({ error: parsed.error.flatten() })
     }
 
-    const totals = await calculateCheckoutTotals(parsed.data.items)
+    const totals = await calculateCheckoutTotals(
+      parsed.data.items,
+      parsed.data.couponCode,
+    )
 
     if (!totals) {
       return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+    if ('error' in totals) {
+      return res.status(totals.status).json({ message: totals.error })
     }
 
     const order = await prisma.order.create({
@@ -591,6 +652,8 @@ export function createApp(prisma: PrismaClient) {
         subtotal: totals.subtotal,
         shipping: totals.shipping,
         total: totals.total,
+        discount: totals.discount,
+        couponCode: totals.couponCode,
         items: {
           create: parsed.data.items.map((item) => ({
             productId: item.productId,
@@ -635,10 +698,16 @@ export function createApp(prisma: PrismaClient) {
       return res.status(400).json({ error: parsed.error.flatten() })
     }
 
-    const totals = await calculateCheckoutTotals(parsed.data.items)
+    const totals = await calculateCheckoutTotals(
+      parsed.data.items,
+      parsed.data.couponCode,
+    )
 
     if (!totals) {
       return res.status(404).json({ message: 'Produto não encontrado' })
+    }
+    if ('error' in totals) {
+      return res.status(totals.status).json({ message: totals.error })
     }
 
     res.json({

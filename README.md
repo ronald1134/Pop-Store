@@ -10,6 +10,7 @@ Loja demonstrativa de cultura pop com catálogo de mangás, livros, HQs, Kindle 
 - Lista de produtos favoritos por usuário
 - Avaliações com nota e comentários por produto
 - Registro e consulta de pedidos
+- Cupons demonstrativos aplicados e validados no servidor durante o checkout
 - Painel administrativo para produtos e usuários, com métricas de vendas por período
 - Layout responsivo
 
@@ -52,7 +53,9 @@ npm run db:push
 npm run db:seed
 ```
 
-Os pedidos novos recebem o status `PENDING`; o comando `db:push` adiciona esse status aos pedidos existentes. O painel consulta `GET /api/admin/metrics?period=7d|30d|12m` com token de administrador.
+Os pedidos novos recebem o status `PENDING`; o comando `db:push` adiciona esse status aos pedidos existentes e prepara os campos de cupom/desconto no histórico. O painel consulta `GET /api/admin/metrics?period=7d|30d|12m` com token de administrador.
+
+No checkout, os cupons fictícios disponíveis são `POP10` (10% de desconto), `CULTURA15` (15% em compras a partir de R$ 100) e `FRETEGRATIS` (desconto equivalente ao frete). Eles são demonstrativos, não expiram e podem ser digitados no campo de cupom.
 
 Favoritos e avaliações são associados às contas locais. Cada usuário pode manter um favorito por produto e uma avaliação por produto; uma nova avaliação do mesmo usuário atualiza a nota e o comentário anteriores.
 

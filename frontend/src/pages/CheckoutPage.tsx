@@ -5,6 +5,7 @@ import {
   Flex,
   Heading,
   Image,
+  Input,
   List,
   ListItem,
   Stack,
@@ -17,15 +18,44 @@ import { useNavigate } from 'react-router-dom'
 import { useProducts } from '../context/ProductContext'
 import { API_URL } from '../services/api'
 
+type CheckoutItem = { productId: number; quantity: number }
+
+type CheckoutTotals = {
+  subtotal: number
+  shipping: number
+  discount: number
+  couponCode: string | null
+  total: number
+}
+
+async function requestCheckoutQuote(
+  items: CheckoutItem[],
+  couponCode?: string,
+): Promise<CheckoutTotals> {
+  const response = await fetch(`${API_URL}/api/checkout/quote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, ...(couponCode ? { couponCode } : {}) }),
+  })
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Não foi possível calcular o pedido')
+  }
+
+  return data
+}
+
 export function CheckoutPage() {
   const { cart, removeFromCart, user, token, clearCart } = useProducts()
   const navigate = useNavigate()
   const toast = useToast()
-  const [totals, setTotals] = useState<{
-    subtotal: number
-    shipping: number
-    total: number
-  } | null>(null)
+  const [totals, setTotals] = useState<CheckoutTotals | null>(null)
+  const [couponDraft, setCouponDraft] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState('')
+  const [couponError, setCouponError] = useState('')
+  const [quoteError, setQuoteError] = useState('')
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
 
   const groupedItems = Object.values(
     cart.reduce<Record<number, { productId: number; quantity: number }>>((acc, item) => {
@@ -47,23 +77,52 @@ export function CheckoutPage() {
       return
     }
 
-    fetch(`${API_URL}/api/checkout/quote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: groupedItems }),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error('Não foi possível calcular o pedido')
-        }
-
-        setTotals(await response.json())
+    let active = true
+    requestCheckoutQuote(groupedItems, appliedCoupon || undefined)
+      .then((data) => {
+        if (!active) return
+        setTotals(data)
+        setQuoteError('')
+        if (appliedCoupon) setCouponError('')
       })
       .catch((error) => {
+        if (!active) return
         setTotals(null)
-        console.error(error)
+        const message =
+          error instanceof Error ? error.message : 'Não foi possível calcular o pedido'
+        if (appliedCoupon) {
+          setCouponError(message)
+          setAppliedCoupon('')
+        } else {
+          setQuoteError(message)
+        }
       })
-  }, [cart])
+
+    return () => {
+      active = false
+    }
+  }, [cart, appliedCoupon])
+
+  const handleApplyCoupon = async () => {
+    const couponCode = couponDraft.trim().toUpperCase()
+    if (!couponCode) return
+
+    setIsApplyingCoupon(true)
+    setCouponError('')
+    try {
+      const data = await requestCheckoutQuote(groupedItems, couponCode)
+      setTotals(data)
+      setAppliedCoupon(data.couponCode ?? '')
+      setCouponDraft(data.couponCode ?? couponCode)
+      setQuoteError('')
+    } catch (error) {
+      setCouponError(
+        error instanceof Error ? error.message : 'Não foi possível validar o cupom',
+      )
+    } finally {
+      setIsApplyingCoupon(false)
+    }
+  }
 
   const handleFinishPurchase = async () => {
     if (!user) {
@@ -78,11 +137,15 @@ export function CheckoutPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ items: groupedItems }),
+        body: JSON.stringify({
+          items: groupedItems,
+          ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
+        }),
       })
 
       if (!paymentResponse.ok) {
-        throw new Error('Pagamento não aprovado')
+        const data = await paymentResponse.json()
+        throw new Error(data.message || 'Pagamento não aprovado')
       }
 
       const orderResponse = await fetch(`${API_URL}/api/orders`, {
@@ -91,11 +154,15 @@ export function CheckoutPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ items: groupedItems }),
+        body: JSON.stringify({
+          items: groupedItems,
+          ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
+        }),
       })
 
       if (!orderResponse.ok) {
-        throw new Error('Não foi possível registrar o pedido')
+        const data = await orderResponse.json()
+        throw new Error(data.message || 'Não foi possível registrar o pedido')
       }
 
       await clearCart()
@@ -171,6 +238,61 @@ export function CheckoutPage() {
                 <Text>Frete</Text>
                 <Text>{totals ? `R$ ${totals.shipping.toFixed(2)}` : 'Calculando...'}</Text>
               </Flex>
+              <Box>
+                <Flex gap={2}>
+                  <Input
+                    value={couponDraft}
+                    onChange={(event) => setCouponDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') handleApplyCoupon()
+                    }}
+                    placeholder="Código do cupom"
+                    aria-label="Código do cupom"
+                    bg="gray.900"
+                  />
+                  <Button
+                    variant="outline"
+                    colorScheme="pink"
+                    onClick={handleApplyCoupon}
+                    isLoading={isApplyingCoupon}
+                    isDisabled={!couponDraft.trim()}
+                  >
+                    Aplicar
+                  </Button>
+                </Flex>
+                <Text fontSize="xs" color="gray.400" mt={2}>
+                  Cupons: POP10 (10%), CULTURA15 (15% acima de R$ 100) e FRETEGRATIS.
+                </Text>
+                {couponError && <Text role="alert" color="red.300" mt={2}>{couponError}</Text>}
+                {quoteError && <Text role="alert" color="red.300" mt={2}>{quoteError}</Text>}
+                {appliedCoupon && (
+                  <Flex justify="space-between" align="center" mt={1}>
+                    <Text color="green.300" fontSize="sm">
+                      {appliedCoupon === 'FRETEGRATIS'
+                        ? 'Frete grátis aplicado'
+                        : `Cupom ${appliedCoupon} aplicado`}
+                    </Text>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      color="gray.300"
+                      onClick={() => {
+                        setAppliedCoupon('')
+                        setCouponDraft('')
+                        setCouponError('')
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  </Flex>
+                )}
+              </Box>
+              {totals && totals.discount > 0 && (
+                <Flex justify="space-between" color="green.300">
+                  <Text>Desconto ({totals.couponCode})</Text>
+                  <Text>- R$ {totals.discount.toFixed(2)}</Text>
+                </Flex>
+              )}
               <Flex justify="space-between">
                 <Text>Entrega estimada</Text>
                 <Text color="pink.300">3 a 5 dias úteis</Text>
@@ -180,7 +302,12 @@ export function CheckoutPage() {
                 <Text>Total</Text>
                 <Text>{totals ? `R$ ${totals.total.toFixed(2)}` : 'Calculando...'}</Text>
               </Flex>
-              <Button colorScheme="pink" size="lg" onClick={handleFinishPurchase}>
+              <Button
+                colorScheme="pink"
+                size="lg"
+                onClick={handleFinishPurchase}
+                isDisabled={!totals || isApplyingCoupon}
+              >
                 Finalizar compra
               </Button>
             </Stack>
