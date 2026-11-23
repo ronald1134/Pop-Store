@@ -10,8 +10,8 @@ Loja demonstrativa de cultura pop com catálogo de mangás, livros, HQs, Kindle 
 - Lista de produtos favoritos por usuário
 - Avaliações com nota e comentários por produto
 - Registro e consulta de pedidos
-- Cupons demonstrativos aplicados e validados no servidor durante o checkout
-- Painel administrativo para produtos e usuários, com métricas de vendas por período
+- Cupons de desconto no checkout: POP10 (10%), CULTURA15 (15% em compras a partir de R$ 100) e FRETEGRATIS (frete grátis)
+- Painel administrativo para produtos e usuários, com vendas por período, receita no período, pedidos por status e produtos mais vendidos
 - Layout responsivo
 
 ## Requisitos
