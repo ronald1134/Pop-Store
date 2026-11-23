@@ -10,7 +10,7 @@ Loja demonstrativa de cultura pop com catálogo de mangás, livros, HQs, Kindle 
 - Lista de produtos favoritos por usuário
 - Avaliações com nota e comentários por produto
 - Registro e consulta de pedidos
-- Painel administrativo para produtos e usuários
+- Painel administrativo para produtos e usuários, com métricas de vendas por período
 - Layout responsivo
 
 ## Requisitos
@@ -51,6 +51,8 @@ npm run db:generate
 npm run db:push
 npm run db:seed
 ```
+
+Os pedidos novos recebem o status `PENDING`; o comando `db:push` adiciona esse status aos pedidos existentes. O painel consulta `GET /api/admin/metrics?period=7d|30d|12m` com token de administrador.
 
 Favoritos e avaliações são associados às contas locais. Cada usuário pode manter um favorito por produto e uma avaliação por produto; uma nova avaliação do mesmo usuário atualiza a nota e o comentário anteriores.
 

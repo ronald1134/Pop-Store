@@ -67,6 +67,7 @@ model Order {
   subtotal  Float?     // Subtotal calculado pelo backend; nulo em pedidos antigos.
   shipping  Float?     // Frete calculado pelo backend; nulo quando não foi registrado.
   total     Float
+  status    String     @default("PENDING")
   createdAt DateTime   @default(now())
   user      User       @relation(fields: [userId], references: [id])
   items     OrderItem[]

@@ -11,6 +11,7 @@ import {
   signToken,
   verifyToken,
 } from './auth.js'
+import { createAdminMetricsRouter } from './admin-metrics.js'
 import { createPasswordResetRouter } from './password-reset.js'
 
 export function createApp(prisma: PrismaClient) {
@@ -158,6 +159,7 @@ export function createApp(prisma: PrismaClient) {
     }
   }
 
+  app.use('/api/admin', createAdminMetricsRouter(prisma, authMiddleware))
   app.use('/api/admin', createPasswordResetRouter(prisma, authMiddleware))
 
   app.get('/api/health', (_req, res) => {

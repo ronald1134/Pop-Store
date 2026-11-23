@@ -1,6 +1,9 @@
 import {
   Box,
   Button,
+  Alert,
+  AlertIcon,
+  Center,
   Divider,
   Flex,
   FormControl,
@@ -14,6 +17,11 @@ import {
   NumberInput,
   NumberInputField,
   Select,
+  SimpleGrid,
+  Spinner,
+  Stat,
+  StatLabel,
+  StatNumber,
   Stack,
   Text,
   Textarea,
@@ -30,8 +38,50 @@ import {
 import { Eye, EyeOff, KeyRound, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  ResponsiveContainer,
+  Tooltip as ChartTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { useProducts } from '../context/ProductContext'
 import { API_URL } from '../services/api'
+
+type MetricsPeriod = '7d' | '30d' | '12m'
+
+type AdminMetrics = {
+  period: MetricsPeriod
+  revenueTotal: number
+  salesByPeriod: Array<{ date: string; revenue: number; orders: number }>
+  ordersByStatus: Array<{ status: string; count: number }>
+  topProducts: Array<{ productId: number; title: string; quantity: number }>
+}
+
+const orderStatusLabels: Record<string, string> = {
+  PENDING: 'Pendente',
+  PROCESSING: 'Em processamento',
+  SHIPPED: 'Enviado',
+  DELIVERED: 'Entregue',
+  CANCELLED: 'Cancelado',
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
+const formatSalesDate = (value: string, period: MetricsPeriod) => {
+  const date = new Date(`${value}${period === '12m' ? '-01' : ''}T12:00:00`)
+  return date.toLocaleDateString('pt-BR', {
+    day: period === '12m' ? undefined : '2-digit',
+    month: 'short',
+    year: period === '12m' ? '2-digit' : undefined,
+  })
+}
 
 export function AdminPage() {
   const { products, refreshProducts, isAdmin, token } = useProducts()
@@ -49,6 +99,10 @@ export function AdminPage() {
   const [users, setUsers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([])
   const [passwordDrafts, setPasswordDrafts] = useState<Record<number, string>>({})
   const [visiblePasswordDrafts, setVisiblePasswordDrafts] = useState<Record<number, boolean>>({})
+  const [metricsPeriod, setMetricsPeriod] = useState<MetricsPeriod>('30d')
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsError, setMetricsError] = useState('')
   const formRef = useRef<HTMLDivElement>(null)
 
   const requestHeaders = {
@@ -73,6 +127,43 @@ export function AdminPage() {
       loadUsers().catch((error) => console.error(error))
     }
   }, [isAdmin, token])
+
+  useEffect(() => {
+    if (!isAdmin || !token) return
+
+    let active = true
+    const loadMetrics = async () => {
+      setMetricsLoading(true)
+      setMetricsError('')
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/admin/metrics?period=${metricsPeriod}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Não foi possível carregar as métricas')
+        }
+
+        if (active) setMetrics(data)
+      } catch (error) {
+        if (active) {
+          setMetricsError(
+            error instanceof Error ? error.message : 'Erro ao carregar as métricas',
+          )
+        }
+      } finally {
+        if (active) setMetricsLoading(false)
+      }
+    }
+
+    loadMetrics()
+    return () => {
+      active = false
+    }
+  }, [isAdmin, metricsPeriod, token])
 
   const resetForm = () => {
     setEditingId(null)
@@ -223,6 +314,160 @@ export function AdminPage() {
       <Heading as="h1" size="lg" className="reveal">
         Painel administrativo
       </Heading>
+
+      <Box mt={8}>
+        <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} gap={4} direction={{ base: 'column', md: 'row' }}>
+          <Box>
+            <Heading as="h2" size="md">Métricas de vendas</Heading>
+            <Text color="gray.400" mt={1}>Acompanhe o desempenho da loja no período selecionado.</Text>
+          </Box>
+          <Select
+            aria-label="Período das métricas"
+            value={metricsPeriod}
+            onChange={(event) => {
+              const selectedPeriod = event.target.value
+              if (selectedPeriod === '7d' || selectedPeriod === '30d' || selectedPeriod === '12m') {
+                setMetricsPeriod(selectedPeriod)
+              }
+            }}
+            maxW={{ base: 'full', md: '200px' }}
+            bg="gray.800"
+          >
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+            <option value="12m">Últimos 12 meses</option>
+          </Select>
+        </Flex>
+
+        {metricsError && (
+          <Alert status="error" mt={5} borderRadius="lg">
+            <AlertIcon />
+            {metricsError}
+          </Alert>
+        )}
+
+        {metricsLoading ? (
+          <Center minH="220px">
+            <Spinner color="pink.300" />
+          </Center>
+        ) : metrics ? (
+          <>
+            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4} mt={6}>
+              <Stat bg="gray.800" border="1px solid" borderColor="gray.700" borderRadius="xl" p={5}>
+                <StatLabel color="gray.400">Receita no período</StatLabel>
+                <StatNumber color="pink.300">{formatCurrency(metrics.revenueTotal)}</StatNumber>
+              </Stat>
+              <Stat bg="gray.800" border="1px solid" borderColor="gray.700" borderRadius="xl" p={5}>
+                <StatLabel color="gray.400">Pedidos no período</StatLabel>
+                <StatNumber>
+                  {metrics.salesByPeriod.reduce((total, day) => total + day.orders, 0)}
+                </StatNumber>
+              </Stat>
+            </SimpleGrid>
+
+            <Grid templateColumns={{ base: '1fr', lg: 'repeat(2, 1fr)' }} gap={5} mt={5}>
+              <Box gridColumn={{ base: 'auto', lg: '1 / -1' }} bg="gray.800" borderRadius="xl" p={5} border="1px solid" borderColor="gray.700">
+                <Heading as="h3" size="sm" mb={5}>Vendas por período</Heading>
+                <Box h="280px">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={metrics.salesByPeriod}>
+                      <defs>
+                        <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f472b6" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#f472b6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(value: string) => formatSalesDate(value, metrics.period)}
+                        stroke="#9ca3af"
+                        minTickGap={24}
+                      />
+                      <YAxis yAxisId="revenue" tickFormatter={(value: number) => `R$ ${value}`} stroke="#9ca3af" />
+                      <YAxis yAxisId="orders" orientation="right" allowDecimals={false} stroke="#9ca3af" />
+                      <ChartTooltip
+                        labelFormatter={(value) => formatSalesDate(String(value), metrics.period)}
+                        formatter={(value, name) => [
+                          name === 'Receita' ? formatCurrency(Number(value)) : value,
+                          name,
+                        ]}
+                        contentStyle={{ background: '#111827', borderColor: '#374151', borderRadius: 8 }}
+                      />
+                      <Area
+                        yAxisId="revenue"
+                        type="monotone"
+                        dataKey="revenue"
+                        name="Receita"
+                        stroke="#f472b6"
+                        fill="url(#salesFill)"
+                      />
+                      <Line
+                        yAxisId="orders"
+                        type="monotone"
+                        dataKey="orders"
+                        name="Pedidos"
+                        stroke="#38bdf8"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Box>
+
+              <Box bg="gray.800" borderRadius="xl" p={5} border="1px solid" borderColor="gray.700">
+                <Heading as="h3" size="sm" mb={5}>Pedidos por status</Heading>
+                <Box h="280px">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metrics.ordersByStatus} layout="vertical" margin={{ left: 8, right: 12 }}>
+                      <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
+                      <XAxis type="number" allowDecimals={false} stroke="#9ca3af" />
+                      <YAxis
+                        type="category"
+                        dataKey="status"
+                        width={125}
+                        stroke="#9ca3af"
+                        tickFormatter={(value: string) => orderStatusLabels[value] ?? value}
+                      />
+                      <ChartTooltip
+                        formatter={(value) => [value, 'Pedidos']}
+                        labelFormatter={(value) => orderStatusLabels[String(value)] ?? String(value)}
+                        contentStyle={{ background: '#111827', borderColor: '#374151', borderRadius: 8 }}
+                      />
+                      <Bar dataKey="count" name="Pedidos" fill="#ec4899" radius={[0, 5, 5, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Box>
+
+              <Box bg="gray.800" borderRadius="xl" p={5} border="1px solid" borderColor="gray.700">
+                <Heading as="h3" size="sm" mb={5}>Produtos mais vendidos</Heading>
+                {metrics.topProducts.length ? (
+                  <Box h="280px">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metrics.topProducts} layout="vertical" margin={{ left: 8, right: 12 }}>
+                        <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
+                        <XAxis type="number" allowDecimals={false} stroke="#9ca3af" />
+                        <YAxis type="category" dataKey="title" width={130} stroke="#9ca3af" />
+                        <ChartTooltip
+                          formatter={(value) => [value, 'Unidades']}
+                          contentStyle={{ background: '#111827', borderColor: '#374151', borderRadius: 8 }}
+                        />
+                        <Bar dataKey="quantity" name="Unidades" fill="#38bdf8" radius={[0, 5, 5, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Box>
+                ) : (
+                  <Center h="280px">
+                    <Text color="gray.400">Nenhum produto vendido neste período.</Text>
+                  </Center>
+                )}
+              </Box>
+            </Grid>
+          </>
+        ) : null}
+      </Box>
 
       <Box ref={formRef} mt={8} bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
         <Heading as="h2" size="md" mb={6}>

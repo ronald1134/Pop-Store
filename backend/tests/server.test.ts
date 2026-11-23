@@ -60,6 +60,7 @@ function createTestDatabase() {
     subtotal: number
     shipping: number
     total: number
+    status: string
     createdAt: Date
     items: Array<{
       productId: number
@@ -252,12 +253,28 @@ function createTestDatabase() {
         return { count: 1 }
       },
     },
-    orderItem: {
-      count: async () => 0,
-    },
     order: {
       count: async ({ where }: any) =>
         orders.filter((order) => order.userId === where.userId).length,
+      aggregate: async ({ where }: any) => ({
+        _sum: {
+          total: orders
+            .filter((order) => order.createdAt >= where.createdAt.gte)
+            .reduce((sum, order) => sum + order.total, 0) || null,
+        },
+      }),
+      groupBy: async ({ where }: any) => {
+        const grouped = new Map<string, number>()
+        for (const order of orders) {
+          if (order.createdAt >= where.createdAt.gte) {
+            grouped.set(order.status, (grouped.get(order.status) ?? 0) + 1)
+          }
+        }
+        return [...grouped].map(([status, count]) => ({
+          status,
+          _count: { _all: count },
+        }))
+      },
       create: async ({ data }: any) => {
         const order = {
           id: nextOrderId++,
@@ -265,6 +282,7 @@ function createTestDatabase() {
           subtotal: data.subtotal,
           shipping: data.shipping,
           total: data.total,
+          status: data.status ?? 'PENDING',
           createdAt: new Date(),
           items: data.items.create.map(
             (item: { productId: number; quantity: number }) => ({
@@ -276,8 +294,31 @@ function createTestDatabase() {
         orders.push(order)
         return order
       },
-      findMany: async ({ where }: any) =>
-        orders.filter((order) => order.userId === where.userId),
+      findMany: async ({ where = {} }: any) =>
+        orders.filter(
+          (order) =>
+            (!where.userId || order.userId === where.userId) &&
+            (!where.createdAt?.gte || order.createdAt >= where.createdAt.gte),
+        ),
+    },
+    orderItem: {
+      count: async () => 0,
+      groupBy: async ({ where }: any) => {
+        const quantities = new Map<number, number>()
+        for (const order of orders) {
+          if (order.createdAt < where.order.createdAt.gte) continue
+          for (const item of order.items) {
+            quantities.set(
+              item.productId,
+              (quantities.get(item.productId) ?? 0) + item.quantity,
+            )
+          }
+        }
+        return [...quantities].map(([productId, quantity]) => ({
+          productId,
+          _sum: { quantity },
+        }))
+      },
     },
     $transaction: async (operations: Promise<unknown>[]) =>
       Promise.all(operations),
@@ -634,6 +675,64 @@ test('somente administradores podem acessar as rotas de gestão', async () => {
       },
     )
     assert.equal(rejectedShortPassword.status, 400)
+  })
+})
+
+test('métricas administrativas agregam vendas e bloqueiam outros usuários', async () => {
+  const database = createTestDatabase()
+  const customer = database.addUser({
+    email: 'cliente@example.com',
+    role: 'CUSTOMER',
+  })
+  const admin = database.addUser({ email: 'admin@example.com', role: 'ADMIN' })
+
+  await withApi(database.prisma, async (baseUrl) => {
+    const anonymousResponse = await fetch(`${baseUrl}/api/admin/metrics`)
+    assert.equal(anonymousResponse.status, 401)
+
+    const deniedResponse = await fetch(`${baseUrl}/api/admin/metrics`, {
+      headers: { Authorization: `Bearer ${signToken(customer.id)}` },
+    })
+    assert.equal(deniedResponse.status, 403)
+
+    const invalidPeriodResponse = await fetch(
+      `${baseUrl}/api/admin/metrics?period=forever`,
+      { headers: { Authorization: `Bearer ${signToken(admin.id)}` } },
+    )
+    assert.equal(invalidPeriodResponse.status, 400)
+
+    for (const quantity of [2, 1]) {
+      const orderResponse = await fetch(
+        `${baseUrl}/api/orders`,
+        jsonRequest(
+          { items: [{ productId: 1, quantity }] },
+          signToken(customer.id),
+        ),
+      )
+      assert.equal(orderResponse.status, 201)
+    }
+
+    const metricsResponse = await fetch(
+      `${baseUrl}/api/admin/metrics?period=7d`,
+      { headers: { Authorization: `Bearer ${signToken(admin.id)}` } },
+    )
+    assert.equal(metricsResponse.status, 200)
+    const metrics = await metricsResponse.json()
+    assert.equal(metrics.period, '7d')
+    assert.equal(metrics.revenueTotal, 114.8)
+    assert.equal(metrics.salesByPeriod.length, 7)
+    assert.equal(metrics.salesByPeriod.at(-1).orders, 2)
+    assert.equal(metrics.salesByPeriod.at(-1).revenue, 114.8)
+    assert.deepEqual(metrics.ordersByStatus, [
+      { status: 'PENDING', count: 2 },
+      { status: 'PROCESSING', count: 0 },
+      { status: 'SHIPPED', count: 0 },
+      { status: 'DELIVERED', count: 0 },
+      { status: 'CANCELLED', count: 0 },
+    ])
+    assert.deepEqual(metrics.topProducts, [
+      { productId: 1, title: 'Livro de teste', quantity: 3 },
+    ])
   })
 })
 
